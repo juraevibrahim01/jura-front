@@ -1,0 +1,22 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    box-sizing: border-box;
+}
+
+main {
+    margin: 0;
+    padding: 0;
+}
+
+#page {
+    width: 100%;
+    margin: 0;
+}
+
+.home-page {
+    margin: 40px 40px 0px 40px;
+    display: flex;
+    justify-content: center;
+}

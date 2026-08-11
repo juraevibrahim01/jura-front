@@ -1,0 +1,171 @@
+1. shared — общие вещи
+
+То, что может использоваться практически где угодно.
+
+shared/
+├── ui/
+│   ├── Button/
+│   └── Input/
+├── api/
+├── lib/
+└── config/
+
+Например:
+
+<Button>Купить</Button>
+2. entities — сущности бизнеса
+
+Основные объекты приложения:
+
+entities/
+├── user/
+├── product/
+├── order/
+└── category/
+
+Например, Product:
+
+entities/product/
+├── ui/
+├── model/
+└── api/
+
+Здесь находится логика, связанная именно с товаром.
+
+3. features — действия пользователя
+
+Это уже не просто сущность, а конкретное действие или возможность.
+
+Например:
+
+features/
+├── add-to-cart/
+├── login/
+├── search-product/
+├── change-password/
+└── create-order/
+
+Например:
+
+features/add-to-cart/
+├── ui/
+├── model/
+└── api/
+
+То есть:
+
+Product — сущность
+AddToCart — действие над этой сущностью
+
+4. widgets — крупные самостоятельные блоки
+
+Например:
+
+widgets/
+├── Header/
+├── ProductList/
+├── ShoppingCart/
+└── Sidebar/
+
+ProductList может объединять:
+
+Product
+↓
+ProductCard
+↓
+AddToCart
+
+То есть widget собирает несколько частей приложения в один большой блок.
+
+5. pages — страницы
+
+Например:
+
+pages/
+├── HomePage/
+├── ProductPage/
+├── CartPage/
+└── ProfilePage/
+
+Страница обычно собирает widgets, features и entities.
+
+Например:
+
+ProductPage
+   │
+   ├── Header
+   ├── ProductInfo
+   ├── ProductImages
+   ├── AddToCart
+   └── Reviews
+6. app — само приложение
+
+Здесь находятся глобальные вещи:
+
+app/
+├── routes/
+├── providers/
+├── styles/
+└── store/
+
+Например:
+
+роутинг
+глобальные providers
+Redux/Zustand
+глобальные стили
+настройка приложения
+Как это всё связано
+
+Можно представить так:
+
+                 APP
+                  │
+                PAGES
+                  │
+               WIDGETS
+                  │
+              FEATURES
+                  │
+              ENTITIES
+                  │
+               SHARED
+
+Но важный момент: это не просто уровни вложенности. FSD также определяет правила зависимостей.
+
+Например:
+
+pages → widgets → features → entities → shared
+
+А наоборот желательно не делать:
+
+shared → pages   ❌
+entities → pages ❌
+features → pages ❌
+
+Именно это помогает избежать ситуации, когда маленький компонент внезапно зависит от всей страницы.
+
+Зачем вообще FSD?
+
+Без архитектуры проект со временем может превратиться в:
+
+components/
+services/
+utils/
+hooks/
+api/
+pages/
+...
+
+И через несколько месяцев становится сложно понять:
+
+«Где находится логика корзины?»
+
+В FSD ты примерно знаешь:
+
+features/add-to-cart/
+entities/product/
+widgets/shopping-cart/
+pages/cart/
+
+То есть код группируется вокруг бизнес-смысла, а не только вокруг технического типа файла.
