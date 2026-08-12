@@ -1,0 +1,1 @@
+export const Button = `<button class="not-found_button_create">New Test Case</button>`
