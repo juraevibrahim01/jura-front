@@ -1,178 +1,41 @@
-import { getProjects, getProjectMetrics, getBugReports, getTestCases } from '../../api/api.mjs';
-
-const createEl = (tag, cls = '', txt = '') => {
-    const el = document.createElement(tag);
-    if (cls) el.className = cls;
-    if (txt) el.textContent = txt;
-    return el;
-};
+import { getProjects, getProjectMetrics } from '../../api/projectapi.mjs';
+import { getBugReports } from '../../api/bagreportapi.mjs';
+import { getTestCases } from '../../api/testkeysapi.mjs';
+import { renderProjectsList } from './ProjectSidebar.mjs';
+import { renderBugReportsPanel } from './BugReportsPanel.mjs';
+import { renderTestCasesPanel } from './TestCasesPanel.mjs';
 
 const setBreadcrumb = (parts) => {
-    const bc = document.getElementById('breadcrumb');
-    if (bc) bc.textContent = parts.join(' / ');
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (breadcrumb) breadcrumb.textContent = parts.join(' / ');
 };
 
-const renderProjectsList = (container, projects, activeProjectId, state) => {
-    container.innerHTML = '';
-    const title = createEl('div', 'projects-title', 'Projects');
-    container.appendChild(title);
+let mainContainer = null;
 
-    projects.forEach((p) => {
-        const pWrap = createEl('div', 'project-wrap');
-        const pHeader = createEl('div', 'project-header');
-        pHeader.textContent = p.name;
-        pHeader.dataset.projectId = p.id;
-        if (p.id === activeProjectId) pHeader.classList.add('active-project');
+const showProjectMetrics = async (projectId) => {
+    if (!mainContainer) return;
 
-        const toggleIcon = createEl('span', 'chev');
-        toggleIcon.textContent = state.expanded[p.id] ? '▼' : '▶';
-        pHeader.prepend(toggleIcon);
+    mainContainer.innerHTML = '<div class="main-loading">Loading...</div>';
 
-        const sub = createEl('div', 'project-submenu');
-        if (!state.expanded[p.id]) sub.style.display = 'none';
-
-        const br = createEl('div', 'submenu-item');
-        br.textContent = 'Bug Reports';
-        br.dataset.action = 'bug-reports';
-        br.dataset.projectId = p.id;
-        if (state.activeSection === 'bug-reports' && state.activeProjectId === p.id) br.classList.add('active-sub');
-
-        const tc = createEl('div', 'submenu-item');
-        tc.textContent = 'Test Cases';
-        tc.dataset.action = 'test-cases';
-        tc.dataset.projectId = p.id;
-        if (state.activeSection === 'test-cases' && state.activeProjectId === p.id) tc.classList.add('active-sub');
-
-        sub.appendChild(br);
-        sub.appendChild(tc);
-
-        pWrap.appendChild(pHeader);
-        pWrap.appendChild(sub);
-        container.appendChild(pWrap);
-
-        // events
-        pHeader.addEventListener('click', async () => {
-            // toggle
-            state.expanded[p.id] = !state.expanded[p.id];
-            renderProjectsList(container, projects, state.activeProjectId, state);
-            if (!state.activeProjectId || state.activeProjectId !== p.id) {
-                // select project and load metrics
-                state.activeProjectId = p.id;
-                state.activeProjectName = p.name;
-                state.activeSection = null;
-                setBreadcrumb(['Jura', p.name]);
-                await loadAndRenderMetrics(p.id);
-            }
-        });
-
-        br.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            state.activeProjectId = p.id;
-            state.activeProjectName = p.name;
-            state.activeSection = 'bug-reports';
-            renderProjectsList(container, projects, state.activeProjectId, state);
-            setBreadcrumb(['Jura', p.name, 'Bug Reports']);
-            await loadAndRenderBugReports(p.id);
-        });
-
-        tc.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            state.activeProjectId = p.id;
-            state.activeProjectName = p.name;
-            state.activeSection = 'test-cases';
-            renderProjectsList(container, projects, state.activeProjectId, state);
-            setBreadcrumb(['Jura', p.name, 'Test Cases']);
-            await loadAndRenderTestCases(p.id);
-        });
-    });
-};
-
-const showMainLoading = (main) => {
-    main.innerHTML = '<div class="main-loading">Loading...</div>';
-};
-
-const showMainError = (main, msg) => {
-    main.innerHTML = `<div class="main-error">${msg}</div>`;
-};
-
-const renderMetrics = (main, metrics) => {
-    main.innerHTML = `
-        <div class="metrics">
-            <h2 class="metrics-title">${metrics.project_name}</h2>
-            <div class="metrics-cards">
-                <div class="card">
-                    <div class="card-title">Bug Reports</div>
-                    <div class="card-value">${metrics.bug_reports_count}</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Test Cases</div>
-                    <div class="card-value">${metrics.test_cases_count}</div>
-                </div>
-            </div>
-        </div>
-    `;
-};
-
-const renderBugReports = (main, items) => {
-    if (!items || items.length === 0) {
-        main.innerHTML = '<div class="main-empty">No bug reports.</div>';
-        return;
-    }
-    const rows = items.map(it => `
-        <div class="bug-card">
-            <div class="bug-title">${it.title}</div>
-            <div class="bug-meta">#${it.id} • ${it.status} • ${it.priority}</div>
-        </div>
-    `).join('');
-    main.innerHTML = `<div class="list-title">Bug Reports</div><div class="bug-list">${rows}</div>`;
-};
-
-const renderTestCases = (main, items) => {
-    if (!items || items.length === 0) {
-        main.innerHTML = '<div class="main-empty">No test cases.</div>';
-        return;
-    }
-    const rows = items.map(it => `
-        <div class="tc-card">
-            <div class="tc-title">${it.title}</div>
-            <div class="tc-meta">#${it.id} • ${it.status}</div>
-        </div>
-    `).join('');
-    main.innerHTML = `<div class="list-title">Test Cases</div><div class="tc-list">${rows}</div>`;
-};
-
-let _mainEl = null;
-
-const loadAndRenderMetrics = async (projectId) => {
-    if (!_mainEl) return;
-    showMainLoading(_mainEl);
     try {
         const metrics = await getProjectMetrics(projectId);
-        renderMetrics(_mainEl, metrics);
+        mainContainer.innerHTML = `
+            <div class="metrics">
+                <h2 class="metrics-title">${metrics.project_name}</h2>
+                <div class="metrics-cards">
+                    <div class="card">
+                        <div class="card-title">Bug Reports</div>
+                        <div class="card-value">${metrics.bug_reports_count}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Test Cases</div>
+                        <div class="card-value">${metrics.test_cases_count}</div>
+                    </div>
+                </div>
+            </div>
+        `;
     } catch (err) {
-        showMainError(_mainEl, 'Failed to load metrics');
-    }
-};
-
-const loadAndRenderBugReports = async (projectId) => {
-    if (!_mainEl) return;
-    showMainLoading(_mainEl);
-    try {
-        const items = await getBugReports(projectId);
-        renderBugReports(_mainEl, items);
-    } catch (err) {
-        showMainError(_mainEl, 'Failed to load bug reports');
-    }
-};
-
-const loadAndRenderTestCases = async (projectId) => {
-    if (!_mainEl) return;
-    showMainLoading(_mainEl);
-    try {
-        const items = await getTestCases(projectId);
-        renderTestCases(_mainEl, items);
-    } catch (err) {
-        showMainError(_mainEl, 'Failed to load test cases');
+        mainContainer.innerHTML = '<div class="main-error">Failed to load metrics</div>';
     }
 };
 
@@ -180,13 +43,11 @@ export const initDashboard = async () => {
     const sidebar = document.getElementById('dashboard-sidebar');
     const main = document.getElementById('dashboard-main');
 
-    if (!header || !sidebar || !main) return;
+    if (!sidebar || !main) return;
 
-    // Respect a breadcrumb placed inside main (user preference): render content into #main-content if present
     const mainContent = document.getElementById('main-content');
-    _mainEl = mainContent || main;
+    mainContainer = mainContent || main;
 
-    // state
     const state = {
         expanded: {},
         activeProjectId: null,
@@ -194,27 +55,124 @@ export const initDashboard = async () => {
         activeSection: null,
     };
 
-    // load projects
     sidebar.innerHTML = '<div class="sidebar-loading">Loading projects...</div>';
+
     try {
         const projects = await getProjects();
-        // initialize expanded map
-        projects.forEach(p => { state.expanded[p.id] = false; });
-        renderProjectsList(sidebar, projects, state.activeProjectId, state);
-        // if at least one project, select first project by default
+
+        projects.forEach((project) => {
+            state.expanded[project.id] = false;
+        });
+
+        renderProjectsList(sidebar, projects, state.activeProjectId, state, {
+            onProjectSelect: async (project) => {
+                state.activeProjectId = project.id;
+                state.activeProjectName = project.name;
+                state.activeSection = null;
+                setBreadcrumb(['Jura', project.name]);
+                await showProjectMetrics(project.id);
+                renderProjectsList(sidebar, projects, state.activeProjectId, state, {
+                    onProjectSelect: async (selectedProject) => {
+                        state.activeProjectId = selectedProject.id;
+                        state.activeProjectName = selectedProject.name;
+                        state.activeSection = null;
+                        setBreadcrumb(['Jura', selectedProject.name]);
+                        await showProjectMetrics(selectedProject.id);
+                        renderProjectsList(sidebar, projects, state.activeProjectId, state, {
+                            onProjectSelect: async (selected) => {
+                                state.activeProjectId = selected.id;
+                                state.activeProjectName = selected.name;
+                                state.activeSection = null;
+                                setBreadcrumb(['Jura', selected.name]);
+                                await showProjectMetrics(selected.id);
+                            },
+                            onBugReportsSelect: async (selectedProject) => {
+                                state.activeProjectId = selectedProject.id;
+                                state.activeProjectName = selectedProject.name;
+                                state.activeSection = 'bug-reports';
+                                setBreadcrumb(['Jura', selectedProject.name, 'Bug Reports']);
+                                await renderBugReportsPanel(mainContainer, async () => getBugReports(selectedProject.id));
+                            },
+                            onTestCasesSelect: async (selectedProject) => {
+                                state.activeProjectId = selectedProject.id;
+                                state.activeProjectName = selectedProject.name;
+                                state.activeSection = 'test-cases';
+                                setBreadcrumb(['Jura', selectedProject.name, 'Test Cases']);
+                                await renderTestCasesPanel(mainContainer, async () => getTestCases(selectedProject.id));
+                            }
+                        });
+                    },
+                    onBugReportsSelect: async (selectedProject) => {
+                        state.activeProjectId = selectedProject.id;
+                        state.activeProjectName = selectedProject.name;
+                        state.activeSection = 'bug-reports';
+                        setBreadcrumb(['Jura', selectedProject.name, 'Bug Reports']);
+                        await renderBugReportsPanel(mainContainer, async () => getBugReports(selectedProject.id));
+                    },
+                    onTestCasesSelect: async (selectedProject) => {
+                        state.activeProjectId = selectedProject.id;
+                        state.activeProjectName = selectedProject.name;
+                        state.activeSection = 'test-cases';
+                        setBreadcrumb(['Jura', selectedProject.name, 'Test Cases']);
+                        await renderTestCasesPanel(mainContainer, async () => getTestCases(selectedProject.id));
+                    }
+                });
+            },
+            onBugReportsSelect: async (project) => {
+                state.activeProjectId = project.id;
+                state.activeProjectName = project.name;
+                state.activeSection = 'bug-reports';
+                setBreadcrumb(['Jura', project.name, 'Bug Reports']);
+                await renderBugReportsPanel(mainContainer, async () => getBugReports(project.id));
+            },
+            onTestCasesSelect: async (project) => {
+                state.activeProjectId = project.id;
+                state.activeProjectName = project.name;
+                state.activeSection = 'test-cases';
+                setBreadcrumb(['Jura', project.name, 'Test Cases']);
+                await renderTestCasesPanel(mainContainer, async () => getTestCases(project.id));
+            }
+        });
+
         if (projects.length > 0) {
-            const first = projects[0];
-            state.activeProjectId = first.id;
-            state.activeProjectName = first.name;
-            setBreadcrumb(['Jura', first.name]);
-            await loadAndRenderMetrics(first.id);
-            renderProjectsList(sidebar, projects, state.activeProjectId, state);
+            const firstProject = projects[0];
+            state.activeProjectId = firstProject.id;
+            state.activeProjectName = firstProject.name;
+            setBreadcrumb(['Jura', firstProject.name]);
+            await showProjectMetrics(firstProject.id);
+            renderProjectsList(sidebar, projects, state.activeProjectId, state, {
+                onProjectSelect: async (project) => {
+                    state.activeProjectId = project.id;
+                    state.activeProjectName = project.name;
+                    state.activeSection = null;
+                    setBreadcrumb(['Jura', project.name]);
+                    await showProjectMetrics(project.id);
+                },
+                onBugReportsSelect: async (project) => {
+                    state.activeProjectId = project.id;
+                    state.activeProjectName = project.name;
+                    state.activeSection = 'bug-reports';
+                    setBreadcrumb(['Jura', project.name, 'Bug Reports']);
+                    await renderBugReportsPanel(mainContainer, async () => getBugReports(project.id));
+                },
+                onTestCasesSelect: async (project) => {
+                    state.activeProjectId = project.id;
+                    state.activeProjectName = project.name;
+                    state.activeSection = 'test-cases';
+                    setBreadcrumb(['Jura', project.name, 'Test Cases']);
+                    await renderTestCasesPanel(mainContainer, async () => getTestCases(project.id));
+                }
+            });
         } else {
             sidebar.innerHTML = '<div class="sidebar-empty">No projects found.</div>';
-            if (_mainEl) _mainEl.innerHTML = '<div class="main-empty">No project selected.</div>';
+            if (mainContainer) {
+                mainContainer.innerHTML = '<div class="main-empty">No project selected.</div>';
+            }
         }
     } catch (err) {
         sidebar.innerHTML = '<div class="sidebar-error">Failed to load projects.</div>';
-        if (_mainEl) _mainEl.innerHTML = '<div class="main-error">Cannot load data.</div>';
+        if (mainContainer) {
+            mainContainer.innerHTML = '<div class="main-error">Cannot load data.</div>';
+        }
     }
 };
