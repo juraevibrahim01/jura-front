@@ -21,15 +21,15 @@ const showProjectMetrics = async (projectId) => {
         const metrics = await getProjectMetrics(projectId);
         mainContainer.innerHTML = `
             <div class="metrics">
-                <h2 class="metrics-title">${metrics.project_name}</h2>
+                <h2 class="metrics-title">${metrics.project.project_name}</h2>
                 <div class="metrics-cards">
                     <div class="card">
                         <div class="card-title">Bug Reports</div>
-                        <div class="card-value">${metrics.bug_reports_count}</div>
+                        <div class="card-value">${metrics.project.tickets_total}</div>
                     </div>
                     <div class="card">
                         <div class="card-title">Test Cases</div>
-                        <div class="card-value">${metrics.test_cases_count}</div>
+                        <div class="card-value">${metrics.project.testkeys_total}</div>
                     </div>
                 </div>
             </div>

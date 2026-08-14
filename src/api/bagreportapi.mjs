@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8081';
+const API_BASE_URL = 'http://localhost:8089';
 const PROJECTS_STORAGE_KEY = 'projects';
 
 async function fetchJson(url, opts = {}) {
