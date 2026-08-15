@@ -1,4 +1,7 @@
-export async function fetchJson(url, opts = {}) {
+const API_BASE_URL = 'http://localhost:8081';
+
+export async function fetchJson(endpoint, opts = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
     try {
         const res = await fetch(url, opts);
         if (!res.ok) {

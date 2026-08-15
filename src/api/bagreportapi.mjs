@@ -1,21 +1,9 @@
-const API_BASE_URL = 'http://localhost:8089';
+import { fetchJson } from './api.mjs';
+
 const PROJECTS_STORAGE_KEY = 'projects';
 
-async function fetchJson(url, opts = {}) {
-    try {
-        const res = await fetch(`${API_BASE_URL}${url}`, opts);
-        if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(text || res.statusText || 'Network error');
-        }
-        return await res.json();
-    } catch (err) {
-        throw new Error(err.message || 'Fetch failed');
-    }
-}
-
 export const getBugReports = async (projectId) => {
-    const response = await fetchJson(`/projects/${projectId}/bug-reports`, {
+    const response = await fetchJson("/projects/", `${projectId}/bug-reports`, {
         method: 'GET',
         headers: {
             'X-User-UserID': '1',

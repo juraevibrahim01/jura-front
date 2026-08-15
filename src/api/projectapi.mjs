@@ -1,6 +1,5 @@
 import { fetchJson } from './api.mjs';
 
-const API_BASE_URL = 'http://localhost:8089';
 const PROJECTS_STORAGE_KEY = 'projects';
 
 const saveProjectsToStorage = (projects) => {
@@ -22,7 +21,7 @@ const saveProjectsToStorage = (projects) => {
 };
 
 export const getProjects = async () => {
-    const response = await fetchJson(`${API_BASE_URL}/projects`, {
+    const response = await fetchJson(`/projects`, {
         method: 'GET',
         headers: {
             'X-User-UserID': '1',
@@ -36,7 +35,7 @@ export const getProjects = async () => {
 };
 
 export const getProjectMetrics = async (projectId) => {
-    const metrics = await fetchJson(`${API_BASE_URL}/project/${projectId}`, {
+    const metrics = await fetchJson(`/project/${projectId}`, {
         method: 'GET',
         headers: {
             'X-User-UserID': '1',

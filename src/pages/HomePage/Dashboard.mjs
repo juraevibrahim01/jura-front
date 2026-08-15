@@ -1,10 +1,11 @@
 import { getProjects, getProjectMetrics } from '../../api/projectapi.mjs';
 import { getBugReports } from '../../api/bagreportapi.mjs';
-import { getTestCases } from '../../api/testkeysapi.mjs';
+import { getTestKey } from '../../api/testkeysapi.mjs';
 import { renderProjectsList } from './ProjectSidebar.mjs';
 import { renderBugReportsPanel } from './BugReportsPanel.mjs';
 import { renderTestCasesPanel } from './TestCasesPanel.mjs';
 
+// Установить хлебные крошки навигации
 const setBreadcrumb = (parts) => {
     const breadcrumb = document.getElementById('breadcrumb');
     if (breadcrumb) breadcrumb.textContent = parts.join(' / ');
@@ -12,6 +13,7 @@ const setBreadcrumb = (parts) => {
 
 let mainContainer = null;
 
+// Показать метрики проекта (количество баг-репортов и тест-кейсов)
 const showProjectMetrics = async (projectId) => {
     if (!mainContainer) return;
 
@@ -39,6 +41,52 @@ const showProjectMetrics = async (projectId) => {
     }
 };
 
+// Обновить состояние проекта и показать его метрики
+const selectProject = async (projects, state, project) => {
+    state.activeProjectId = project.id;
+    state.activeProjectName = project.name;
+    state.activeSection = null;
+    localStorage.setItem('activeProjectId', project.id); // Для модалки создания тест-кейса
+    setBreadcrumb(['Jura', project.name]);
+    await showProjectMetrics(project.id);
+};
+
+// Показать баг-репорты выбранного проекта
+const selectBugReports = async (state, project) => {
+    state.activeProjectId = project.id;
+    state.activeProjectName = project.name;
+    state.activeSection = 'bug-reports';
+    localStorage.setItem('activeProjectId', project.id);
+    setBreadcrumb(['Jura', project.name, 'Bug Reports']);
+    await renderBugReportsPanel(mainContainer, async () => getBugReports(project.id));
+};
+
+// Показать тест-кейсы выбранного проекта
+const selectTestCases = async (state, project) => {
+    state.activeProjectId = project.id;
+    state.activeProjectName = project.name;
+    state.activeSection = 'test-cases';
+    localStorage.setItem('activeProjectId', project.id);
+    setBreadcrumb(['Jura', project.name, 'Test Cases']);
+    await renderTestCasesPanel(mainContainer, async () => getTestKey(project.id));
+};
+
+// Создать обработчики событий для проектов
+const createProjectHandlers = (projects, state) => ({
+    onProjectSelect: async (project) => {
+        await selectProject(projects, state, project);
+        // Перерендерить список с новым активным проектом
+        renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state));
+    },
+    onBugReportsSelect: async (project) => {
+        await selectBugReports(state, project);
+    },
+    onTestCasesSelect: async (project) => {
+        await selectTestCases(state, project);
+    }
+});
+
+// Инициализировать дашборд с проектами и обработчиками событий
 export const initDashboard = async () => {
     const sidebar = document.getElementById('dashboard-sidebar');
     const main = document.getElementById('dashboard-main');
@@ -48,6 +96,7 @@ export const initDashboard = async () => {
     const mainContent = document.getElementById('main-content');
     mainContainer = mainContent || main;
 
+    // Состояние дашборда: открытые проекты, активный проект, активный раздел
     const state = {
         expanded: {},
         activeProjectId: null,
@@ -58,111 +107,22 @@ export const initDashboard = async () => {
     sidebar.innerHTML = '<div class="sidebar-loading">Loading projects...</div>';
 
     try {
+        // Получить список проектов
         const projects = await getProjects();
 
+        // Инициализировать все проекты как закрытые
         projects.forEach((project) => {
             state.expanded[project.id] = false;
         });
 
-        renderProjectsList(sidebar, projects, state.activeProjectId, state, {
-            onProjectSelect: async (project) => {
-                state.activeProjectId = project.id;
-                state.activeProjectName = project.name;
-                state.activeSection = null;
-                setBreadcrumb(['Jura', project.name]);
-                await showProjectMetrics(project.id);
-                renderProjectsList(sidebar, projects, state.activeProjectId, state, {
-                    onProjectSelect: async (selectedProject) => {
-                        state.activeProjectId = selectedProject.id;
-                        state.activeProjectName = selectedProject.name;
-                        state.activeSection = null;
-                        setBreadcrumb(['Jura', selectedProject.name]);
-                        await showProjectMetrics(selectedProject.id);
-                        renderProjectsList(sidebar, projects, state.activeProjectId, state, {
-                            onProjectSelect: async (selected) => {
-                                state.activeProjectId = selected.id;
-                                state.activeProjectName = selected.name;
-                                state.activeSection = null;
-                                setBreadcrumb(['Jura', selected.name]);
-                                await showProjectMetrics(selected.id);
-                            },
-                            onBugReportsSelect: async (selectedProject) => {
-                                state.activeProjectId = selectedProject.id;
-                                state.activeProjectName = selectedProject.name;
-                                state.activeSection = 'bug-reports';
-                                setBreadcrumb(['Jura', selectedProject.name, 'Bug Reports']);
-                                await renderBugReportsPanel(mainContainer, async () => getBugReports(selectedProject.id));
-                            },
-                            onTestCasesSelect: async (selectedProject) => {
-                                state.activeProjectId = selectedProject.id;
-                                state.activeProjectName = selectedProject.name;
-                                state.activeSection = 'test-cases';
-                                setBreadcrumb(['Jura', selectedProject.name, 'Test Cases']);
-                                await renderTestCasesPanel(mainContainer, async () => getTestCases(selectedProject.id));
-                            }
-                        });
-                    },
-                    onBugReportsSelect: async (selectedProject) => {
-                        state.activeProjectId = selectedProject.id;
-                        state.activeProjectName = selectedProject.name;
-                        state.activeSection = 'bug-reports';
-                        setBreadcrumb(['Jura', selectedProject.name, 'Bug Reports']);
-                        await renderBugReportsPanel(mainContainer, async () => getBugReports(selectedProject.id));
-                    },
-                    onTestCasesSelect: async (selectedProject) => {
-                        state.activeProjectId = selectedProject.id;
-                        state.activeProjectName = selectedProject.name;
-                        state.activeSection = 'test-cases';
-                        setBreadcrumb(['Jura', selectedProject.name, 'Test Cases']);
-                        await renderTestCasesPanel(mainContainer, async () => getTestCases(selectedProject.id));
-                    }
-                });
-            },
-            onBugReportsSelect: async (project) => {
-                state.activeProjectId = project.id;
-                state.activeProjectName = project.name;
-                state.activeSection = 'bug-reports';
-                setBreadcrumb(['Jura', project.name, 'Bug Reports']);
-                await renderBugReportsPanel(mainContainer, async () => getBugReports(project.id));
-            },
-            onTestCasesSelect: async (project) => {
-                state.activeProjectId = project.id;
-                state.activeProjectName = project.name;
-                state.activeSection = 'test-cases';
-                setBreadcrumb(['Jura', project.name, 'Test Cases']);
-                await renderTestCasesPanel(mainContainer, async () => getTestCases(project.id));
-            }
-        });
+        // Отрендерить список проектов с обработчиками
+        renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state));
 
+        // Загрузить первый проект по умолчанию
         if (projects.length > 0) {
-            const firstProject = projects[0];
-            state.activeProjectId = firstProject.id;
-            state.activeProjectName = firstProject.name;
-            setBreadcrumb(['Jura', firstProject.name]);
-            await showProjectMetrics(firstProject.id);
-            renderProjectsList(sidebar, projects, state.activeProjectId, state, {
-                onProjectSelect: async (project) => {
-                    state.activeProjectId = project.id;
-                    state.activeProjectName = project.name;
-                    state.activeSection = null;
-                    setBreadcrumb(['Jura', project.name]);
-                    await showProjectMetrics(project.id);
-                },
-                onBugReportsSelect: async (project) => {
-                    state.activeProjectId = project.id;
-                    state.activeProjectName = project.name;
-                    state.activeSection = 'bug-reports';
-                    setBreadcrumb(['Jura', project.name, 'Bug Reports']);
-                    await renderBugReportsPanel(mainContainer, async () => getBugReports(project.id));
-                },
-                onTestCasesSelect: async (project) => {
-                    state.activeProjectId = project.id;
-                    state.activeProjectName = project.name;
-                    state.activeSection = 'test-cases';
-                    setBreadcrumb(['Jura', project.name, 'Test Cases']);
-                    await renderTestCasesPanel(mainContainer, async () => getTestCases(project.id));
-                }
-            });
+            await selectProject(projects, state, projects[0]);
+            // Обновить список с выбранным проектом
+            renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state));
         } else {
             sidebar.innerHTML = '<div class="sidebar-empty">No projects found.</div>';
             if (mainContainer) {

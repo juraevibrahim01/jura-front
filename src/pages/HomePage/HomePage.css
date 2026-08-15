@@ -415,7 +415,18 @@
 
 .bug-title, .tc-title { font-weight: 700; color: #0f172a; }
 
-.list-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.list-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.list-title > h2 {
+    margin: 0;
+}
 
 .sidebar-loading, .sidebar-error, .sidebar-empty { color: #64748b; padding: 12px; }
 
