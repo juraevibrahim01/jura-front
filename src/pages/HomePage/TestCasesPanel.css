@@ -5,18 +5,13 @@
 .test-case-modal {
     position: fixed;
     inset: 0;
-
     width: 100%;
     height: 100%;
-
     z-index: 9999;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 20px;
-
     box-sizing: border-box;
 }
 
@@ -38,21 +33,15 @@
 .test-case-modal-content {
     position: relative;
     z-index: 1;
-
     width: 700px;
     max-width: 100%;
-
     max-height: 90vh;
-
     background: #ffffff;
-
     border-radius: 16px;
-
     box-shadow:
         0 20px 50px rgba(0, 0, 0, 0.25);
 
     overflow: hidden;
-
     display: flex;
     flex-direction: column;
 }
@@ -62,29 +51,23 @@
 
 .test-case-modal-header {
     display: flex;
-
     justify-content: space-between;
     align-items: flex-start;
-
     padding: 20px 24px;
-
     border-bottom: 1px solid #e5e5e5;
 }
 
 
 .test-case-modal-header h2 {
     margin: 0 0 5px 0;
-
     font-size: 22px;
     font-weight: 600;
-
     color: #222;
 }
 
 
 .test-case-modal-header span {
     font-size: 14px;
-
     color: #777;
 }
 
@@ -94,24 +77,16 @@
 .test-case-modal-close {
     width: 36px;
     height: 36px;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     border: none;
-
     border-radius: 8px;
-
     background: transparent;
-
     font-size: 28px;
     line-height: 1;
-
     color: #666;
-
     cursor: pointer;
-
     transition: background 0.2s ease,
                 color 0.2s ease;
 }
@@ -119,7 +94,6 @@
 
 .test-case-modal-close:hover {
     background: #f1f1f1;
-
     color: #111;
 }
 
@@ -128,12 +102,9 @@
 
 .test-case-modal-body {
     padding: 24px;
-
     overflow-y: auto;
-
     display: flex;
     flex-direction: column;
-
     gap: 18px;
 }
 
@@ -143,7 +114,6 @@
 .test-case-field {
     display: flex;
     flex-direction: column;
-
     gap: 7px;
 }
 
@@ -152,9 +122,7 @@
 
 .test-case-label {
     font-size: 13px;
-
     font-weight: 600;
-
     color: #666;
 }
 
@@ -163,19 +131,12 @@
 
 .test-case-value {
     padding: 12px 14px;
-
     background: #f7f7f8;
-
     border: 1px solid #e8e8e8;
-
     border-radius: 8px;
-
     font-size: 14px;
-
     line-height: 1.5;
-
     color: #222;
-
     word-break: break-word;
 }
 
@@ -194,7 +155,6 @@
 
 .test-case-modal-body::-webkit-scrollbar-thumb {
     background: #cfcfcf;
-
     border-radius: 10px;
 }
 
@@ -216,9 +176,7 @@
 
     .test-case-modal-content {
         width: 100%;
-
         max-height: 95vh;
-
         border-radius: 12px;
     }
 
@@ -228,11 +186,58 @@
 
     .test-case-modal-body {
         padding: 16px;
-
         gap: 14px;
     }
 
     .test-case-modal-header h2 {
         font-size: 18px;
+    }
+}
+
+.test-case-loading {
+    position: fixed;
+    inset: 0;
+
+    z-index: 10000;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.test-case-loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+
+    padding: 24px 30px;
+
+    background: #fff;
+    border-radius: 12px;
+
+    font-size: 15px;
+}
+
+.test-case-spinner {
+    width: 32px;
+    height: 32px;
+
+    border: 4px solid #e5e5e5;
+    border-top-color: #333;
+    border-radius: 50%;
+
+    animation: test-case-spin 0.8s linear infinite;
+}
+
+@keyframes test-case-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
     }
 }

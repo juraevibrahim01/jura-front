@@ -1,181 +1,603 @@
-import { Button, initButtonListeners } from '../../shared/ui/Button/Button.mjs';
-import { getTestKey } from '../../api/testkeysapi.mjs';
+import {
+    Button,
+    initButtonListeners
+} from '../../shared/ui/Button/Button.mjs';
+
+import {
+    getTestKey
+} from '../../api/testkeysapi.mjs';
 
 
-// Отрендерить список тест-кейсов или пустое сообщение
+// ======================================================
+// Рендер списка тест-кейсов
+// ======================================================
+
 const renderTestCases = (main, items) => {
+
+    // Если тест-кейсов нет
     if (!items || items.length === 0) {
-        // Если тест-кейсов нет → показать пустое состояние с кнопкой "Добавить"
+
         main.innerHTML = `
             <div class="main-empty">
+
                 <div class="main-empty-content">
                     <h2>No test cases found</h2>
-                    <p>There are no test cases available for this project.</p>
+
+                    <p>
+                        There are no test cases available
+                        for this project.
+                    </p>
                 </div>
+
                 <div class="main-empty-add-test-case"></div>
+
             </div>
-            `;   
+        `;
+
         return;
     }
-    // Если тест-кейсы есть → отрендерить список с ID для клика
-    const rows = items.map((item) => `
-        <div class="tc-card" data-test-case-id="${item.id}">
-            <div class="tc-title">${item.name}</div>
-            <div class="tc-meta">#${item.id} • ${item.status}</div>
-        </div>
-    `).join('');
 
+
+    // ==================================================
+    // Создаём карточки тест-кейсов
+    // ==================================================
+
+    const rows = items
+        .map((item) => {
+
+            return `
+                <div
+                    class="tc-card"
+                    data-test-case-id="${item.id}"
+                >
+
+                    <div class="tc-title">
+                        ${item.name}
+                    </div>
+
+                    <div class="tc-meta">
+                        #${item.id} • ${item.status ?? ''}
+                    </div>
+
+                </div>
+            `;
+        })
+        .join('');
+
+
+    // ==================================================
+    // Рендерим список
+    // ==================================================
 
     main.innerHTML = `
         <div class="list-title">
-            <h2>Test Cases</h2>
+
+            <h2>
+                Test Cases
+            </h2>
+
             ${Button}
+
         </div>
-        <div class="tc-list">${rows}</div>
+
+        <div class="tc-list">
+            ${rows}
+        </div>
     `;
 
+
+    // Инициализация кнопок
     initButtonListeners();
-    
-    // Добавить обработчик клика на каждый тест-кейс для загрузки его деталей
-    const testCaseCards = main.querySelectorAll('.tc-card');
+
+
+    // ==================================================
+    // Получаем все карточки
+    // ==================================================
+
+    const testCaseCards =
+        main.querySelectorAll('.tc-card');
+
+
+    // ==================================================
+    // Добавляем обработчик клика
+    // ==================================================
+
     testCaseCards.forEach((card) => {
+
         card.addEventListener('click', async () => {
-            const project_id = localStorage.getItem("activeProjectId");
-            const testCaseId = Number(card.dataset.testCaseId);
-            if (testCaseId) {
-                try {
-                    const testCaseData = await getTestKey(project_id, testCaseId);
-                    renderTestKeys(testCaseData.test_key);
-                } catch (error) {
-                    console.error('Error loading test case:', error);
-                }
+
+            const projectId =
+                localStorage.getItem(
+                    'activeProjectId'
+                );
+
+
+            const testCaseId =
+                Number(
+                    card.dataset.testCaseId
+                );
+
+
+            // Если ID отсутствует
+            if (!testCaseId) {
+                return;
             }
-        });
-    });
-};
 
-// Отрендерить панель с тест-кейсами
-export const renderTestCasesPanel = async (main, loadTestCases) => {
-    if (!main) return;
-    main.innerHTML = '<div class="main-loading">Loading...</div>';
 
-    try {
-        // Загрузить тест-кейсы (без query параметра)
-        const items = await loadTestCases();
-        renderTestCases(main, items);
-    } catch (err) {
-        main.innerHTML = '<div class="main-error">Failed to load test cases</div>';
-    }
-};
+            // ==================================================
+            // Показываем Loading
+            // ==================================================
 
-// Отрендить модальное для тест кейса
-export const renderTestKeys = (testCaseData) => {
-    if (!testCaseData) {
-        const tclist = document.getElementsByClassName(".tc-list");
-        tclist.innerHTML = '<div class="main-loading">Loading...</div>';
-    } else {
-        const oldModal = document.getElementById('testCaseModal');
-            if (oldModal) {
-                    oldModal.remove();
-                }
+            // На случай, если старый loading остался
+            document
+                .querySelector('.test-case-loading')
+                ?.remove();
 
-        try {
-            const modalHTML = `
-                <div id="testCaseModal" class="test-case-modal">
-                    <div class="test-case-modal-overlay"></div>
 
-                    <div class="test-case-modal-content">
+            document.body.insertAdjacentHTML(
+                'beforeend',
+                `
+                    <div class="test-case-loading">
 
-                        <div class="test-case-modal-header">
+                        <div class="test-case-loading-content">
+
+                            <div class="test-case-spinner"></div>
+
                             <div>
-                                <h2>${testCaseData.name}</h2>
-                                <span>#${testCaseData.id}</span>
-                            </div>
-
-                            <button 
-                                id="closeTestCaseModal"
-                                class="test-case-modal-close"
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        <div class="test-case-modal-body">
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Date</div>
-                                <div class="test-case-value">
-                                    ${testCaseData.date}
-                                </div>
-                            </div>
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Module</div>
-                                <div class="test-case-value">
-                                    ${testCaseData.module}
-                                </div>
-                            </div>
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Precondition</div>
-                                <div class="test-case-value">
-                                    ${testCaseData.precondition}
-                                </div>
-                            </div>
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Steps</div>
-                                <div class="test-case-value test-case-text">
-                                    ${testCaseData.steps}
-                                </div>
-                            </div>
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Expected Result</div>
-                                <div class="test-case-value test-case-text">
-                                    ${testCaseData.expectation_res}
-                                </div>
-                            </div>
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Actual Result</div>
-                                <div class="test-case-value test-case-text">
-                                    ${testCaseData.actual_res}
-                                </div>
-                            </div>
-
-                            <div class="test-case-field">
-                                <div class="test-case-label">Comment</div>
-                                <div class="test-case-value test-case-text">
-                                    ${testCaseData.comment}
-                                </div>
+                                Loading test case...
                             </div>
 
                         </div>
 
                     </div>
-                </div>
-            `;
+                `
+            );
 
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-            const modal = document.getElementById('testCaseModal');
+            try {
 
-            const closeButton = document.getElementById('closeTestCaseModal');
+                // ==================================================
+                // Получаем конкретный Test Case
+                // ==================================================
 
-            const overlay = modal.querySelector('.test-case-modal-overlay');
+                const response =
+                    await getTestKey(
+                        projectId,
+                        testCaseId
+                    );
 
-            closeButton.addEventListener('click', () => {
-                modal.remove();
-            });
 
-            overlay.addEventListener('click', () => {
-                modal.remove();
-            });
+                console.log(
+                    'Test case response:',
+                    response
+                );
 
-            console.log('Modal создан');
-        } catch (err) {
-            console.log(err);
-        }
+
+                // ==================================================
+                // Убираем Loading
+                // ==================================================
+
+                document
+                    .querySelector(
+                        '.test-case-loading'
+                    )
+                    ?.remove();
+
+
+                // ==================================================
+                // Проверяем ответ
+                // ==================================================
+
+                if (
+                    !response ||
+                    !response.test_key
+                ) {
+
+                    console.error(
+                        'test_key отсутствует в ответе:',
+                        response
+                    );
+
+                    return;
+                }
+
+
+                // ==================================================
+                // Открываем модальное окно
+                // ==================================================
+
+                renderTestKeys(
+                    response.test_key
+                );
+
+            } catch (error) {
+
+                // Убираем Loading
+                document
+                    .querySelector(
+                        '.test-case-loading'
+                    )
+                    ?.remove();
+
+
+                console.error(
+                    'Error loading test case:',
+                    error
+                );
+
+
+                // Показываем ошибку
+                document.body.insertAdjacentHTML(
+                    'beforeend',
+                    `
+                        <div
+                            class="test-case-loading"
+                            id="testCaseError"
+                        >
+
+                            <div class="test-case-loading-content">
+
+                                <div>
+                                    Failed to load test case
+                                </div>
+
+                                <button
+                                    id="closeTestCaseError"
+                                    class="test-case-modal-close"
+                                >
+                                    ×
+                                </button>
+
+                            </div>
+
+                        </div>
+                    `
+                );
+
+
+                const errorModal =
+                    document.getElementById(
+                        'testCaseError'
+                    );
+
+
+                const closeError =
+                    document.getElementById(
+                        'closeTestCaseError'
+                    );
+
+
+                closeError?.addEventListener(
+                    'click',
+                    () => {
+                        errorModal?.remove();
+                    }
+                );
+
+
+                errorModal?.addEventListener(
+                    'click',
+                    (event) => {
+
+                        if (
+                            event.target ===
+                            errorModal
+                        ) {
+                            errorModal.remove();
+                        }
+
+                    }
+                );
+
+            }
+
+        });
+
+    });
+
+};
+
+
+// ======================================================
+// Рендер панели Test Cases
+// ======================================================
+
+export const renderTestCasesPanel = async (
+    main,
+    loadTestCases
+) => {
+
+    if (!main) {
+        return;
     }
+
+
+    // Показываем первоначальный Loading
+    main.innerHTML = `
+        <div class="main-loading">
+            Loading...
+        </div>
+    `;
+
+
+    try {
+
+        // Получаем список Test Cases
+        const items =
+            await loadTestCases();
+
+
+        // Рендерим список
+        renderTestCases(
+            main,
+            items
+        );
+
+    } catch (error) {
+
+        console.error(
+            'Error loading test cases:',
+            error
+        );
+
+
+        main.innerHTML = `
+            <div class="main-error">
+                Failed to load test cases
+            </div>
+        `;
+
+    }
+
+};
+
+
+// ======================================================
+// Рендер модального окна Test Case
+// ======================================================
+
+export const renderTestKeys = (
+    testCaseData
+) => {
+
+    // Проверяем данные
+    if (!testCaseData) {
+
+        console.error(
+            'Test case data is empty'
+        );
+
+        return;
+    }
+
+
+    // Удаляем старую модалку
+    const oldModal =
+        document.getElementById(
+            'testCaseModal'
+        );
+
+
+    if (oldModal) {
+        oldModal.remove();
+    }
+
+
+    // ==================================================
+    // HTML модального окна
+    // ==================================================
+
+    const modalHTML = `
+        <div
+            id="testCaseModal"
+            class="test-case-modal"
+        >
+
+            <!-- Overlay -->
+            <div class="test-case-modal-overlay"></div>
+
+
+            <!-- Modal -->
+            <div class="test-case-modal-content">
+
+
+                <!-- Header -->
+                <div class="test-case-modal-header">
+
+                    <div>
+
+                        <h2>
+                            ${testCaseData.name ?? ''}
+                        </h2>
+
+                        <span>
+                            #${testCaseData.id ?? ''}
+                        </span>
+
+                    </div>
+
+
+                    <button
+                        id="closeTestCaseModal"
+                        class="test-case-modal-close"
+                    >
+                        ×
+                    </button>
+
+                </div>
+
+
+                <!-- Body -->
+                <div class="test-case-modal-body">
+
+
+                    <!-- Date -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Date
+                        </div>
+
+                        <div class="test-case-value">
+                            ${testCaseData.date ?? ''}
+                        </div>
+
+                    </div>
+
+
+                    <!-- Module -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Module
+                        </div>
+
+                        <div class="test-case-value">
+                            ${testCaseData.module ?? ''}
+                        </div>
+
+                    </div>
+
+
+                    <!-- Precondition -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Precondition
+                        </div>
+
+                        <div class="test-case-value">
+                            ${testCaseData.precondition ?? ''}
+                        </div>
+
+                    </div>
+
+
+                    <!-- Steps -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Steps
+                        </div>
+
+                        <div
+                            class="test-case-value test-case-text"
+                        >
+                            ${testCaseData.steps ?? ''}
+                        </div>
+
+                    </div>
+
+
+                    <!-- Expected Result -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Expected Result
+                        </div>
+
+                        <div
+                            class="test-case-value test-case-text"
+                        >
+                            ${testCaseData.expectation_res ?? ''}
+                        </div>
+
+                    </div>
+
+
+                    <!-- Actual Result -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Actual Result
+                        </div>
+
+                        <div
+                            class="test-case-value test-case-text"
+                        >
+                            ${testCaseData.actual_res ?? ''}
+                        </div>
+
+                    </div>
+
+
+                    <!-- Comment -->
+                    <div class="test-case-field">
+
+                        <div class="test-case-label">
+                            Comment
+                        </div>
+
+                        <div
+                            class="test-case-value test-case-text"
+                        >
+                            ${testCaseData.comment ?? ''}
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+            </div>
+
+        </div>
+    `;
+
+
+    // ==================================================
+    // Добавляем Modal в body
+    // ==================================================
+
+    document.body.insertAdjacentHTML(
+        'beforeend',
+        modalHTML
+    );
+
+
+    // ==================================================
+    // Получаем элементы
+    // ==================================================
+
+    const modal =
+        document.getElementById(
+            'testCaseModal'
+        );
+
+
+    const closeButton =
+        document.getElementById(
+            'closeTestCaseModal'
+        );
+
+
+    const overlay =
+        modal.querySelector(
+            '.test-case-modal-overlay'
+        );
+
+
+    // ==================================================
+    // Закрытие по кнопке
+    // ==================================================
+
+    closeButton.addEventListener(
+        'click',
+        () => {
+            modal.remove();
+        }
+    );
+
+
+    // ==================================================
+    // Закрытие по overlay
+    // ==================================================
+
+    overlay.addEventListener(
+        'click',
+        () => {
+            modal.remove();
+        }
+    );
+
 };
