@@ -24,6 +24,9 @@ export const getTestKey = async (project_id, id) => {
                 'X-User-Email': 'juraevibrahim01@gmail.com'
                 }
             });
+
+            console.log(response);
+
             return response;
         }
     } catch (error) {
