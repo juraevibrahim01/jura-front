@@ -97,14 +97,9 @@ const renderTestCases = (main, items) => {
     const testCaseCards =
         main.querySelectorAll('.tc-card');
 
-
-    // ==================================================
-    // Добавляем обработчик клика
-    // ==================================================
-
     testCaseCards.forEach((card) => {
 
-        card.addEventListener('click', async () => {
+        card.addEventListener('click', () => {
 
             const projectId =
                 localStorage.getItem(
@@ -113,188 +108,31 @@ const renderTestCases = (main, items) => {
 
 
             const testCaseId =
-                Number(
-                    card.dataset.testCaseId
+                card.dataset.testCaseId;
+
+
+            if (!projectId || !testCaseId) {
+
+                console.error(
+                    'Project ID or Test Case ID is missing'
                 );
 
-
-            // Если ID отсутствует
-            if (!testCaseId) {
                 return;
             }
 
 
-            // ==================================================
-            // Показываем Loading
-            // ==================================================
-
-            // На случай, если старый loading остался
-            document
-                .querySelector('.test-case-loading')
-                ?.remove();
+            const url =
+                `/test-case.html?projectId=${encodeURIComponent(projectId)}&testCaseId=${encodeURIComponent(testCaseId)}`;
 
 
-            document.body.insertAdjacentHTML(
-                'beforeend',
-                `
-                    <div class="test-case-loading">
-
-                        <div class="test-case-loading-content">
-
-                            <div class="test-case-spinner"></div>
-
-                            <div>
-                                Loading test case...
-                            </div>
-
-                        </div>
-
-                    </div>
-                `
+            window.open(
+                url,
+                '_blank'
             );
-
-
-            try {
-
-                // ==================================================
-                // Получаем конкретный Test Case
-                // ==================================================
-
-                const response =
-                    await getTestKey(
-                        projectId,
-                        testCaseId
-                    );
-
-
-                console.log(
-                    'Test case response:',
-                    response
-                );
-
-
-                // ==================================================
-                // Убираем Loading
-                // ==================================================
-
-                document
-                    .querySelector(
-                        '.test-case-loading'
-                    )
-                    ?.remove();
-
-
-                // ==================================================
-                // Проверяем ответ
-                // ==================================================
-
-                if (
-                    !response ||
-                    !response.test_key
-                ) {
-
-                    console.error(
-                        'test_key отсутствует в ответе:',
-                        response
-                    );
-
-                    return;
-                }
-
-
-                // ==================================================
-                // Открываем модальное окно
-                // ==================================================
-
-                renderTestKeys(
-                    response.test_key
-                );
-
-            } catch (error) {
-
-                // Убираем Loading
-                document
-                    .querySelector(
-                        '.test-case-loading'
-                    )
-                    ?.remove();
-
-
-                console.error(
-                    'Error loading test case:',
-                    error
-                );
-
-
-                // Показываем ошибку
-                document.body.insertAdjacentHTML(
-                    'beforeend',
-                    `
-                        <div
-                            class="test-case-loading"
-                            id="testCaseError"
-                        >
-
-                            <div class="test-case-loading-content">
-
-                                <div>
-                                    Failed to load test case
-                                </div>
-
-                                <button
-                                    id="closeTestCaseError"
-                                    class="test-case-modal-close"
-                                >
-                                    ×
-                                </button>
-
-                            </div>
-
-                        </div>
-                    `
-                );
-
-
-                const errorModal =
-                    document.getElementById(
-                        'testCaseError'
-                    );
-
-
-                const closeError =
-                    document.getElementById(
-                        'closeTestCaseError'
-                    );
-
-
-                closeError?.addEventListener(
-                    'click',
-                    () => {
-                        errorModal?.remove();
-                    }
-                );
-
-
-                errorModal?.addEventListener(
-                    'click',
-                    (event) => {
-
-                        if (
-                            event.target ===
-                            errorModal
-                        ) {
-                            errorModal.remove();
-                        }
-
-                    }
-                );
-
-            }
 
         });
 
     });
-
 };
 
 

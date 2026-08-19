@@ -32,62 +32,6 @@ export const TestKeys = (testCases = []) => {
     `;
 };
 
-// ----------------------- test case modal -----------------------
-export const TestCaseModal = (testCase) => {
-    if (!testCase) {
-        return '';
-    }
-
-    return `
-        <div class="modal-overlay" id="testCaseModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>${testCase.test_key.name}</h2>
-                    <button type="button" class="modal-close" aria-label="Close">×</button>
-                </div>
-                <div class="modal-body">
-                    <div class="modal-meta">
-                        <div class="modal-meta_item">
-                            <span class="modal-meta_label">Module</span>
-                            <span class="modal-meta_value">${testCase.test_key.module}</span>
-                        </div>
-                        <div class="modal-meta_item">
-                            <span class="modal-meta_label">Date</span>
-                            <span class="modal-meta_value">${new Date(testCase.test_key.date).toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section_title">Precondition</h3>
-                        <p class="modal-section_content">${testCase.test_key.precondition}</p>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section_title">Steps</h3>
-                        <p class="modal-section_content">${testCase.test_key.steps}</p>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section_title">Expected Result</h3>
-                        <p class="modal-section_content">${testCase.test_key.expectation_res}</p>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section_title">Actual Result</h3>
-                        <p class="modal-section_content">${testCase.test_key.actual_res}</p>
-                    </div>
-                    
-                    <div class="modal-section">
-                        <h3 class="modal-section_title">Comment</h3>
-                        <p class="modal-section_content">${testCase.test_key.comment}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-};
-
-
 export const createTestKeyModal = () => {
     return `
         <div id="testKeyModal" class="modal-overlay">
