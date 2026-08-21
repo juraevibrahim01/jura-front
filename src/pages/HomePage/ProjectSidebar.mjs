@@ -64,6 +64,7 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
 
         bugReportsItem.addEventListener('click', async (event) => {
             event.stopPropagation();
+            console.log("Нажали на багрепорт");
             if (actions.onBugReportsSelect) {
                 await actions.onBugReportsSelect(project);
             }
@@ -71,7 +72,7 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
 
         testCasesItem.addEventListener('click', async (event) => {
             event.stopPropagation();
-            console.log("Нажали на багрепорт");
+            console.log("Нажали на туст кейс");
             if (actions.onTestCasesSelect) {
                 await actions.onTestCasesSelect(project);
             }

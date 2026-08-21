@@ -50,11 +50,9 @@ const renderTestCases = (main, items) => {
                     class="tc-card"
                     data-test-case-id="${item.id}"
                 >
-
                     <div class="tc-title">
                         ${item.name}
                     </div>
-
                     <div class="tc-meta">
                         #${item.id} • ${item.status ?? ''}
                     </div>
@@ -71,84 +69,53 @@ const renderTestCases = (main, items) => {
 
     main.innerHTML = `
         <div class="list-title">
-
             <h2>
                 Test Cases
             </h2>
-
             ${Button}
-
         </div>
-
-        <div class="tc-list">
-            ${rows}
-        </div>
+        <div class="tc-list">${rows}</div>
     `;
-
 
     // Инициализация кнопок
     initButtonListeners();
-
 
     // ==================================================
     // Получаем все карточки
     // ==================================================
 
-    const testCaseCards =
-        main.querySelectorAll('.tc-card');
+    const testCaseCards = main.querySelectorAll('.tc-card');
 
     testCaseCards.forEach((card) => {
 
         card.addEventListener('click', () => {
 
-            const projectId =
-                localStorage.getItem(
-                    'activeProjectId'
-                );
-
-
-            const testCaseId =
-                card.dataset.testCaseId;
-
+            const projectId = localStorage.getItem('activeProjectId');
+            const testCaseId = card.dataset.testCaseId;
 
             if (!projectId || !testCaseId) {
 
-                console.error(
-                    'Project ID or Test Case ID is missing'
-                );
-
+                console.error('Project ID or Test Case ID is missing');
                 return;
             }
 
+            const url = `/test-case.html?projectId=${encodeURIComponent(projectId)}&testCaseId=${encodeURIComponent(testCaseId)}`;
 
-            const url =
-                `/test-case.html?projectId=${encodeURIComponent(projectId)}&testCaseId=${encodeURIComponent(testCaseId)}`;
-
-
-            window.open(
-                url,
-                '_blank'
-            );
+            window.open(url,'_blank');
 
         });
-
     });
 };
 
-
-// ======================================================
+// =====================================================
 // Рендер панели Test Cases
 // ======================================================
 
-export const renderTestCasesPanel = async (
-    main,
-    loadTestCases
-) => {
+export const renderTestCasesPanel = async (main,loadTestCases) => {
 
     if (!main) {
         return;
     }
-
 
     // Показываем первоначальный Loading
     main.innerHTML = `
@@ -157,41 +124,29 @@ export const renderTestCasesPanel = async (
         </div>
     `;
 
-
     try {
-
         // Получаем список Test Cases
         const items =
             await loadTestCases();
-
 
         // Рендерим список
         renderTestCases(
             main,
             items
         );
-
     } catch (error) {
-
-        console.error(
-            'Error loading test cases:',
-            error
-        );
-
+        console.error('Error loading test cases:', error);
 
         main.innerHTML = `
             <div class="main-error">
                 Failed to load test cases
             </div>
         `;
-
     }
-
 };
 
-
 // ======================================================
-// Рендер модального окна Test Case
+// Рендер модального окна Test Case create
 // ======================================================
 
 export const renderTestKeys = (
@@ -222,7 +177,7 @@ export const renderTestKeys = (
 
 
     // ==================================================
-    // HTML модального окна
+    // HTML модального окна create
     // ==================================================
 
     const modalHTML = `

@@ -18,13 +18,11 @@ const params =
         window.location.search
     );
 
-
 const projectId =
     params.get('projectId');
 
-
 const bugReportId =
-    params.get('bugReportId');
+    params.get('tickets');
 
 // ======================================================
 // Проверяем параметры
@@ -65,7 +63,6 @@ async function loadBugReport() {
                 Number(bugReportId)
             );
 
-
         console.log(
             'Bug Report response:',
             response
@@ -73,7 +70,7 @@ async function loadBugReport() {
 
         if (
             !response ||
-            !response.bug_report
+            !response.tickets
         ) {
 
             throw new Error(
@@ -83,7 +80,7 @@ async function loadBugReport() {
         }
 
         renderBugReport(
-            response.bug_report
+            response.tickets
         );
 
     } catch (error) {
@@ -114,6 +111,7 @@ async function loadBugReport() {
 
 function renderBugReport(bugReport) {
 
+    console.log(bugReport);
     main.innerHTML = `
 
         <div class="bug-report-page">
@@ -146,7 +144,7 @@ function renderBugReport(bugReport) {
 
                     <div class="bug-report-value">
                         ${
-                            bugReport.date
+                            bugReport.created_at
                                 ? new Date(
                                     bugReport.date
                                 ).toLocaleDateString()
@@ -177,7 +175,7 @@ function renderBugReport(bugReport) {
                     </div>
 
                     <div class="bug-report-value">
-                        ${bugReport.precondition ?? ''}
+                        ${bugReport.environment ?? ''}
                     </div>
 
                 </div>
@@ -203,7 +201,7 @@ function renderBugReport(bugReport) {
                     </div>
 
                     <div class="bug-report-value">
-                        ${bugReport.expectation_res ?? ''}
+                        ${bugReport.expectation_result ?? ''}
                     </div>
 
                 </div>
@@ -216,7 +214,7 @@ function renderBugReport(bugReport) {
                     </div>
 
                     <div class="bug-report-value">
-                        ${bugReport.actual_res ?? ''}
+                        ${bugReport.actual_result ?? ''}
                     </div>
 
                 </div>
