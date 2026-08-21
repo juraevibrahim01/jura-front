@@ -1,5 +1,5 @@
 import { getProjects, getProjectMetrics } from '../../api/projectapi.mjs';
-import { getBugReports } from '../../api/bagreportapi.mjs';
+import { getBugReport } from '../../api/bagreportapi.mjs';
 import { getTestKey } from '../../api/testkeysapi.mjs';
 import { renderProjectsList } from './ProjectSidebar.mjs';
 import { renderBugReportsPanel } from './BugReportsPanel.mjs';
@@ -58,7 +58,7 @@ const selectBugReports = async (state, project) => {
     state.activeSection = 'bug-reports';
     localStorage.setItem('activeProjectId', project.id);
     setBreadcrumb(['Jura', project.name, 'Bug Reports']);
-    await renderBugReportsPanel(mainContainer, async () => getBugReports(project.id));
+    await renderBugReportsPanel(mainContainer, async () => getBugReport(project.id));
 };
 
 // Показать тест-кейсы выбранного проекта

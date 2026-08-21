@@ -71,6 +71,7 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
 
         testCasesItem.addEventListener('click', async (event) => {
             event.stopPropagation();
+            console.log("Нажали на багрепорт");
             if (actions.onTestCasesSelect) {
                 await actions.onTestCasesSelect(project);
             }

@@ -1,5 +1,4 @@
-import { getTestKey } from '../../api/testkeysapi.mjs';
-
+import { getBugReport } from "../../api/bagreportapi.mjs";
 
 // ======================================================
 // Получаем main
@@ -7,9 +6,8 @@ import { getTestKey } from '../../api/testkeysapi.mjs';
 
 const main =
     document.getElementById(
-        'testCasePage'
+        'bugReportPage'
     );
-
 
 // ======================================================
 // Получаем параметры URL
@@ -25,25 +23,23 @@ const projectId =
     params.get('projectId');
 
 
-const testCaseId =
-    params.get('testCaseId');
-
+const bugReportId =
+    params.get('bugReportId');
 
 // ======================================================
 // Проверяем параметры
 // ======================================================
 
-if (!projectId || !testCaseId) {
-
+if (!projectId || !bugReportId) {
     main.innerHTML = `
         <div class="main-error">
 
             <h2>
-                Test Case not found
+                Bug Report not found
             </h2>
 
             <p>
-                Project ID or Test Case ID is missing.
+                Project ID or Bug Report ID is missing.
             </p>
 
         </div>
@@ -51,68 +47,59 @@ if (!projectId || !testCaseId) {
 
 } else {
 
-    loadTestCase();
+    loadBugReport();
 
 }
 
-
 // ======================================================
-// Получение Test Case
+// Получение Bug Report
 // ======================================================
 
-async function loadTestCase() {
+async function loadBugReport() {
 
     try {
 
         const response =
-            await getTestKey(
+            await getBugReport(
                 projectId,
-                Number(testCaseId)
+                Number(bugReportId)
             );
 
 
         console.log(
-            'Test Case response:',
+            'Bug Report response:',
             response
         );
 
-
         if (
             !response ||
-            !response.test_key
+            !response.bug_report
         ) {
 
             throw new Error(
-                'Test Case not found'
+                'Bug Report not found'
             );
 
         }
 
-
-        renderTestCase(
-            response.test_key
+        renderBugReport(
+            response.bug_report
         );
 
-
     } catch (error) {
-
         console.error(
-            'Error loading Test Case:',
+            'Error loading Bug Report:',
             error
         );
 
-
         main.innerHTML = `
             <div class="main-error">
-
                 <h2>
-                    Failed to load Test Case
+                    Failed to load Bug Report
                 </h2>
-
                 <p>
                     Please try again later.
                 </p>
-
             </div>
         `;
 
@@ -122,25 +109,25 @@ async function loadTestCase() {
 
 
 // ======================================================
-// Рендер Test Case
+// Рендер Bug Report
 // ======================================================
 
-function renderTestCase(testCase) {
+function renderBugReport(bugReport) {
 
     main.innerHTML = `
 
-        <div class="test-case-page">
+        <div class="bug-report-page">
 
-            <div class="test-case-page-header">
+            <div class="bug-report-page-header">
 
                 <div>
 
-                    <span class="test-case-id">
-                        #${testCase.id ?? ''}
+                    <span class="bug-report-id">
+                        #${bugReport.id ?? ''}
                     </span>
 
                     <h2>
-                        ${testCase.name ?? ''}
+                        ${bugReport.title ?? ''}
                     </h2>
 
                 </div>
@@ -148,20 +135,20 @@ function renderTestCase(testCase) {
             </div>
 
 
-            <div class="test-case-body">
+            <div class="bug-report-body">
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Date
                     </div>
 
-                    <div class="test-case-value">
+                    <div class="bug-report-value">
                         ${
-                            testCase.date
+                            bugReport.date
                                 ? new Date(
-                                    testCase.date
+                                    bugReport.date
                                 ).toLocaleDateString()
                                 : ''
                         }
@@ -170,79 +157,79 @@ function renderTestCase(testCase) {
                 </div>
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Module
                     </div>
 
-                    <div class="test-case-value">
-                        ${testCase.module ?? ''}
+                    <div class="bug-report-value">
+                        ${bugReport.module ?? ''}
                     </div>
 
                 </div>
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Precondition
                     </div>
 
-                    <div class="test-case-value">
-                        ${testCase.precondition ?? ''}
+                    <div class="bug-report-value">
+                        ${bugReport.precondition ?? ''}
                     </div>
 
                 </div>
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Steps
                     </div>
 
-                    <div class="test-case-value">
-                        ${testCase.steps ?? ''}
+                    <div class="bug-report-value">
+                        ${bugReport.steps ?? ''}
                     </div>
 
                 </div>
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Expected Result
                     </div>
 
-                    <div class="test-case-value">
-                        ${testCase.expectation_res ?? ''}
+                    <div class="bug-report-value">
+                        ${bugReport.expectation_res ?? ''}
                     </div>
 
                 </div>
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Actual Result
                     </div>
 
-                    <div class="test-case-value">
-                        ${testCase.actual_res ?? ''}
+                    <div class="bug-report-value">
+                        ${bugReport.actual_res ?? ''}
                     </div>
 
                 </div>
 
 
-                <div class="test-case-field">
+                <div class="bug-report-field">
 
-                    <div class="test-case-label">
+                    <div class="bug-report-label">
                         Comment
                     </div>
 
-                    <div class="test-case-value">
-                        ${testCase.comment ?? ''}
+                    <div class="bug-report-value">
+                        ${bugReport.comment ?? ''}
                     </div>
 
                 </div>
