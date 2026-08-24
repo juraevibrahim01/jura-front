@@ -5,6 +5,19 @@ const createElement = (tag, className = '', text = '') => {
     return element;
 };
 
+const getProjectCategoriesKey = (projectId) => `project_categories_${projectId}`;
+
+const readProjectCategories = (projectId) => {
+    try {
+        const raw = localStorage.getItem(getProjectCategoriesKey(projectId));
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+        return [];
+    }
+};
+
 export const renderProjectsList = (container, projects, activeProjectId, state, actions = {}) => {
     container.innerHTML = '';
 
@@ -30,22 +43,25 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
             submenu.style.display = 'none';
         }
 
-        const bugReportsItem = createElement('div', 'submenu-item', 'Bug Reports');
-        bugReportsItem.dataset.action = 'bug-reports';
-        bugReportsItem.dataset.projectId = project.id;
-        if (state.activeSection === 'bug-reports' && state.activeProjectId === project.id) {
-            bugReportsItem.classList.add('active-sub');
-        }
+        const categories = readProjectCategories(project.id);
 
-        const testCasesItem = createElement('div', 'submenu-item', 'Test Cases');
-        testCasesItem.dataset.action = 'test-cases';
-        testCasesItem.dataset.projectId = project.id;
-        if (state.activeSection === 'test-cases' && state.activeProjectId === project.id) {
-            testCasesItem.classList.add('active-sub');
-        }
+        categories.forEach((category) => {
+            const categoryItem = createElement('div', 'submenu-item category-item', category.name);
+            categoryItem.dataset.projectId = project.id;
+            categoryItem.dataset.categoryId = category.id;
+            categoryItem.dataset.categoryName = category.name;
+            if (state.activeSection === 'categories' && state.activeProjectId === project.id) {
+                categoryItem.classList.add('active-sub');
+            }
 
-        submenu.appendChild(bugReportsItem);
-        submenu.appendChild(testCasesItem);
+            categoryItem.addEventListener('click', async () => {
+                if (actions.onCategorySelect) {
+                    await actions.onCategorySelect(project, category);
+                }
+            });
+
+            submenu.appendChild(categoryItem);
+        });
 
         projectWrap.appendChild(projectHeader);
         projectWrap.appendChild(submenu);
@@ -59,22 +75,6 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
                 if (actions.onProjectSelect) {
                     await actions.onProjectSelect(project);
                 }
-            }
-        });
-
-        bugReportsItem.addEventListener('click', async (event) => {
-            event.stopPropagation();
-            console.log("Нажали на багрепорт");
-            if (actions.onBugReportsSelect) {
-                await actions.onBugReportsSelect(project);
-            }
-        });
-
-        testCasesItem.addEventListener('click', async (event) => {
-            event.stopPropagation();
-            console.log("Нажали на туст кейс");
-            if (actions.onTestCasesSelect) {
-                await actions.onTestCasesSelect(project);
             }
         });
     });

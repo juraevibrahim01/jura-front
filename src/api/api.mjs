@@ -10,7 +10,6 @@ export async function fetchJson(endpoint, opts = {}) {
         }
         return await res.json();
     } catch (err) {
-        // Rethrow so callers can handle, but also allow fallback below
         throw new Error(err.message || 'Fetch failed');
     }
 }
