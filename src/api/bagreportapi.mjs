@@ -3,26 +3,54 @@ import { fetchJson } from './api.mjs';
 const PROJECTS_STORAGE_KEY = 'projects';
 
 // Получить Багрепорты проекта или конкретный Багрепорт по ID
-export const getBugReport = async (project_id, id) => {
+export const getBugReport = async (project_id, id = null, subcategoryId = null, categoryId = null) => {
     try {
+        const headers = {
+            'X-User-UserID': '1',
+            'X-User-Email': 'juraevibrahim01@gmail.com'
+        };
+
+        if (subcategoryId) {
+            const candidateEndpoints = [
+                `/projects/${project_id}/categories/${categoryId || ''}/subcategories/${subcategoryId}/tickets`
+            ].filter((endpoint) => endpoint && !endpoint.includes('/categories//'));
+
+            for (const endpoint of candidateEndpoints) {
+                try {
+                    const response = await fetchJson(endpoint, {
+                        method: 'GET',
+                        headers
+                    });
+
+                    const items = Array.isArray(response?.tickets)
+                        ? response.tickets
+                        : Array.isArray(response?.data)
+                            ? response.data
+                            : [];
+
+                    if (items.length > 0 || response?.tickets !== undefined || response?.data !== undefined) {
+                        return items;
+                    }
+                } catch (err) {
+                    // continue to next candidate endpoint
+                }
+            }
+
+            return [];
+        }
+
         if (!id) {
             // Без ID → получить все Багрепорты проекта
             const response = await fetchJson(`/projects/${project_id}/tickets`, {
                 method: 'GET',
-                headers: {
-                    'X-User-UserID': '1',
-                    'X-User-Email': "juraevibrahim01@gmail.com"
-                }
+                headers
             });
-            return response.tickets || [];
+            return response?.tickets || [];
         } else {
             // С ID → получить конкретный багрепорт
             const response = await fetchJson(`/projects/${project_id}/tickets/${id}`, {
                 method: 'GET',
-                headers: { 
-                    'X-User-UserID': '1',
-                    'X-User-Email': "juraevibrahim01@gmail.com"
-                }
+                headers
             });
 
             console.log(response);

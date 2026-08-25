@@ -35,7 +35,7 @@ export const getProjects = async () => {
 };
 
 export const getProjectMetrics = async (projectId) => {
-    const metrics = await fetchJson(`/projects/${projectId}`, {
+    const metrics = await fetchJson(`/project/${projectId}`, {
         method: 'GET',
         headers: {
             'X-User-UserID': '1',

@@ -7,6 +7,7 @@ import { renderProjectsList } from './ProjectSidebar.mjs';
 
 const getCategoryStorageKey = (projectId) => `activeCategoryId_${projectId}`;
 const getSubcategoryStorageKey = (projectId, categoryId) => `activeSubcategoryId_${projectId}_${categoryId}`;
+const getSubcategoryViewStorageKey = (projectId, categoryId, subcategoryId) => `activeSubcategoryView_${projectId}_${categoryId}_${subcategoryId}`;
 const getProjectCategoriesStorageKey = (projectId) => `project_categories_${projectId}`;
 
 const saveProjectCategoryId = (projectId, categoryId) => {
@@ -102,8 +103,22 @@ const buildProjectHierarchy = async (projectId) => {
 const renderProjectCategories = async (projectId) => {
     const { categories, activeCategory, subcategories, activeSubcategory } = await buildProjectHierarchy(projectId);
 
-    const bugReports = activeSubcategory ? await getBugReport(projectId, null, activeSubcategory.id) : [];
-    const testCases = activeSubcategory ? await getTestKey(projectId, null, activeSubcategory.id) : [];
+    const [bugReports, testCases] = activeSubcategory
+        ? await Promise.all([
+            getBugReport(projectId, null, activeSubcategory.id, activeCategory?.id),
+            getTestKey(projectId, null, activeSubcategory.id, activeCategory?.id)
+        ])
+        : [[], []];
+
+    const activeSection = activeSubcategory
+        ? localStorage.getItem(getSubcategoryViewStorageKey(projectId, activeCategory.id, activeSubcategory.id)) || 'bugreports'
+        : 'bugreports';
+
+    const visibleItems = activeSection === 'testcases' ? testCases : bugReports;
+    const visibleTitle = activeSection === 'testcases' ? 'Test Cases' : 'Bug Reports';
+    const emptyMessage = activeSection === 'testcases'
+        ? 'No test cases for this subcategory.'
+        : 'No bug reports for this subcategory.';
 
     return `
         <div class="categories-panel">
@@ -127,13 +142,19 @@ const renderProjectCategories = async (projectId) => {
                         <h4 class="subcategories-title">${activeCategory.name}</h4>
                         <div class="subcategory-list">
                             ${subcategories.length > 0 ? subcategories.map((subcategory) => `
-                                <div
-                                    class="subcategory-item ${Number(activeSubcategory?.id) === Number(subcategory.id) ? 'active' : ''}"
-                                    data-subcategory-id="${subcategory.id}"
-                                    data-category-id="${activeCategory.id}"
-                                    data-project-id="${projectId}"
-                                >
-                                    ${subcategory.name || 'Unnamed subcategory'}
+                                <div class="subcategory-node">
+                                    <div
+                                        class="subcategory-item ${Number(activeSubcategory?.id) === Number(subcategory.id) ? 'active' : ''}"
+                                        data-subcategory-id="${subcategory.id}"
+                                        data-category-id="${activeCategory.id}"
+                                        data-project-id="${projectId}"
+                                    >
+                                        ${subcategory.name || 'Unnamed subcategory'}
+                                    </div>
+                                    <div class="subcategory-children ${Number(activeSubcategory?.id) === Number(subcategory.id) ? 'expanded' : ''}">
+                                        <button type="button" class="subcategory-folder ${activeSection === 'bugreports' && Number(activeSubcategory?.id) === Number(subcategory.id) ? 'active' : ''}" data-subcategory-view="bugreports" data-project-id="${projectId}" data-category-id="${activeCategory.id}" data-subcategory-id="${subcategory.id}">Bug Reports</button>
+                                        <button type="button" class="subcategory-folder ${activeSection === 'testcases' && Number(activeSubcategory?.id) === Number(subcategory.id) ? 'active' : ''}" data-subcategory-view="testcases" data-project-id="${projectId}" data-category-id="${activeCategory.id}" data-subcategory-id="${subcategory.id}">Test Cases</button>
+                                    </div>
                                 </div>
                             `).join('') : '<div class="main-empty">No subcategories available.</div>'}
                         </div>
@@ -141,25 +162,37 @@ const renderProjectCategories = async (projectId) => {
 
                     ${activeSubcategory ? `
                         <div class="subcategory-content">
-                            <div class="subcategory-section">
-                                <h5>Bug Reports</h5>
-                                <div class="subcategory-items-list">
-                                    ${bugReports.length > 0 ? bugReports.map((item) => `
-                                        <div class="subcategory-item-entry" data-bugreport-id="${item.id}">
-                                            ${item.title || item.name || `Ticket #${item.id}`}
-                                        </div>
-                                    `).join('') : '<div class="main-empty">No bug reports for this subcategory.</div>'}
-                                </div>
+                            <div class="subcategory-folder-list">
+                                <button
+                                    type="button"
+                                    class="subcategory-folder ${activeSection === 'bugreports' ? 'active' : ''}"
+                                    data-subcategory-view="bugreports"
+                                    data-project-id="${projectId}"
+                                    data-category-id="${activeCategory.id}"
+                                    data-subcategory-id="${activeSubcategory.id}"
+                                >
+                                    Bug Reports
+                                </button>
+                                <button
+                                    type="button"
+                                    class="subcategory-folder ${activeSection === 'testcases' ? 'active' : ''}"
+                                    data-subcategory-view="testcases"
+                                    data-project-id="${projectId}"
+                                    data-category-id="${activeCategory.id}"
+                                    data-subcategory-id="${activeSubcategory.id}"
+                                >
+                                    Test Cases
+                                </button>
                             </div>
 
                             <div class="subcategory-section">
-                                <h5>Test Cases</h5>
+                                <h5>${visibleTitle}</h5>
                                 <div class="subcategory-items-list">
-                                    ${testCases.length > 0 ? testCases.map((item) => `
-                                        <div class="subcategory-item-entry" data-test-case-id="${item.id}">
-                                            ${item.name || `Test case #${item.id}`}
+                                    ${visibleItems.length > 0 ? visibleItems.map((item) => `
+                                        <div class="subcategory-item-entry ${activeSection === 'testcases' ? 'tc-entry' : 'bug-entry'}" data-test-case-id="${item.id}" data-bugreport-id="${item.id}">
+                                            ${activeSection === 'testcases' ? (item.name || `Test case #${item.id}`) : (item.title || item.name || `Ticket #${item.id}`)}
                                         </div>
-                                    `).join('') : '<div class="main-empty">No test cases for this subcategory.</div>'}
+                                    `).join('') : `<div class="main-empty">${emptyMessage}</div>`}
                                 </div>
                             </div>
                         </div>
@@ -177,6 +210,10 @@ const setBreadcrumb = (parts) => {
 };
 
 let mainContainer = null;
+const activeSubcategoryRequests = new Set();
+
+const makeSubcategoryRequestKey = (projectId, categoryId, subcategoryId) =>
+    `subcategory:${projectId}:${categoryId}:${subcategoryId}`;
 
 const showProjectMetrics = async (projectId) => {
     if (!mainContainer) return;
@@ -203,7 +240,7 @@ const showProjectMetrics = async (projectId) => {
                     saveProjectCategoryId(selectedProjectId, categoryId);
                     localStorage.removeItem(getSubcategoryStorageKey(selectedProjectId, categoryId));
 
-                    const subcategories = await loadSubcategoriesForCategory(selectedProjectId, categoryId, true);
+                    const subcategories = await loadSubcategoriesForCategory(selectedProjectId, categoryId, false);
                     if (Array.isArray(subcategories) && subcategories.length > 0) {
                         const firstSubcategoryId = subcategories[0]?.id;
                         if (firstSubcategoryId) {
@@ -223,12 +260,87 @@ const showProjectMetrics = async (projectId) => {
                 const categoryId = item.dataset.categoryId;
                 const subcategoryId = item.dataset.subcategoryId;
 
-                if (projectId && categoryId && subcategoryId) {
+                if (!projectId || !categoryId || !subcategoryId) return;
+
+                const requestKey = makeSubcategoryRequestKey(projectId, categoryId, subcategoryId);
+                if (activeSubcategoryRequests.has(requestKey)) return;
+                activeSubcategoryRequests.add(requestKey);
+
+                try {
                     saveProjectCategoryId(projectId, categoryId);
                     saveProjectSubcategoryId(projectId, categoryId, subcategoryId);
+                    localStorage.setItem(getSubcategoryViewStorageKey(projectId, categoryId, subcategoryId), 'bugreports');
                     setCurrentRoute(buildProjectSubcategoryRoute(projectId, categoryId, subcategoryId));
-                    await showProjectMetrics(projectId);
+
+                    const [bugReports, testCases] = await Promise.all([
+                        getBugReport(projectId, null, subcategoryId, categoryId),
+                        getTestKey(projectId, null, subcategoryId, categoryId)
+                    ]);
+
+                    const selectedSubcategory = (await loadSubcategoriesForCategory(projectId, categoryId, false)).find((subcategory) => Number(subcategory.id) === Number(subcategoryId)) || { id: Number(subcategoryId), name: 'Selected subcategory' };
+
+                    const viewItems = Array.isArray(bugReports) ? bugReports : [];
+                    const viewTitle = 'Bug Reports';
+
+                    mainContainer.innerHTML = `
+                        <div class="metrics">
+                            <h2 class="metrics-title">${selectedSubcategory.name}</h2>
+                        </div>
+                        <div class="subcategory-content">
+                            <div class="subcategory-folder-list">
+                                <button type="button" class="subcategory-folder active" data-subcategory-view="bugreports" data-project-id="${projectId}" data-category-id="${categoryId}" data-subcategory-id="${subcategoryId}">Bug Reports</button>
+                                <button type="button" class="subcategory-folder" data-subcategory-view="testcases" data-project-id="${projectId}" data-category-id="${categoryId}" data-subcategory-id="${subcategoryId}">Test Cases</button>
+                            </div>
+                            <div class="subcategory-section">
+                                <h5>${viewTitle}</h5>
+                                <div class="subcategory-items-list">
+                                    ${viewItems.length > 0 ? viewItems.map((item) => `
+                                        <div class="subcategory-item-entry bug-entry" data-bugreport-id="${item.id}">
+                                            ${item.title || item.name || `Ticket #${item.id}`}
+                                        </div>
+                                    `).join('') : '<div class="main-empty">No bug reports for this subcategory.</div>'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    mainContainer.querySelectorAll('.subcategory-folder').forEach((folder) => {
+                        folder.addEventListener('click', async () => {
+                            const folderProjectId = folder.dataset.projectId;
+                            const folderCategoryId = folder.dataset.categoryId;
+                            const folderSubcategoryId = folder.dataset.subcategoryId;
+                            const folderView = folder.dataset.subcategoryView;
+
+                            if (!folderProjectId || !folderCategoryId || !folderSubcategoryId || !folderView) return;
+                            localStorage.setItem(getSubcategoryViewStorageKey(folderProjectId, folderCategoryId, folderSubcategoryId), folderView);
+                            await showProjectMetrics(folderProjectId);
+                        });
+                    });
+
+                    mainContainer.querySelectorAll('.bug-entry').forEach((entry) => {
+                        entry.addEventListener('click', () => {
+                            const bugreportId = entry.dataset.bugreportId;
+                            if (!projectId || !bugreportId) return;
+                            const url = `/bugreport.html?projectId=${encodeURIComponent(projectId)}&tickets=${encodeURIComponent(bugreportId)}`;
+                            window.open(url, '_blank');
+                        });
+                    });
+                } finally {
+                    activeSubcategoryRequests.delete(requestKey);
                 }
+            });
+        });
+
+        mainContainer.querySelectorAll('.subcategory-folder').forEach((folder) => {
+            folder.addEventListener('click', async () => {
+                const folderProjectId = folder.dataset.projectId;
+                const folderCategoryId = folder.dataset.categoryId;
+                const folderSubcategoryId = folder.dataset.subcategoryId;
+                const folderView = folder.dataset.subcategoryView;
+
+                if (!folderProjectId || !folderCategoryId || !folderSubcategoryId || !folderView) return;
+                localStorage.setItem(getSubcategoryViewStorageKey(folderProjectId, folderCategoryId, folderSubcategoryId), folderView);
+                await showProjectMetrics(folderProjectId);
             });
         });
     } catch (err) {
@@ -269,7 +381,7 @@ const selectCategory = async (state, project, category) => {
     if (project?.id && category?.id) {
         saveProjectCategoryId(project.id, category.id);
 
-        const subcategories = await loadSubcategoriesForCategory(project.id, category.id, true);
+        const subcategories = await loadSubcategoriesForCategory(project.id, category.id, false);
         if (Array.isArray(subcategories) && subcategories.length > 0) {
             const firstSubcategoryId = subcategories[0]?.id;
             if (firstSubcategoryId) {
@@ -277,8 +389,6 @@ const selectCategory = async (state, project, category) => {
             }
         }
     }
-
-    await showProjectMetrics(project.id);
 };
 
 const createProjectHandlers = (projects, state, sidebar) => ({
@@ -291,6 +401,100 @@ const createProjectHandlers = (projects, state, sidebar) => ({
     },
     onCategorySelect: async (project, category) => {
         await selectCategory(state, project, category);
+        renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state, sidebar));
+    },
+    onSubcategorySelect: async (project, category, subcategory) => {
+        if (!project?.id || !category?.id || !subcategory?.id) return;
+
+        const requestKey = makeSubcategoryRequestKey(project.id, category.id, subcategory.id);
+        if (activeSubcategoryRequests.has(requestKey)) return;
+        activeSubcategoryRequests.add(requestKey);
+
+        try {
+            saveProjectCategoryId(project.id, category.id);
+            saveProjectSubcategoryId(project.id, category.id, subcategory.id);
+            setCurrentRoute(buildProjectSubcategoryRoute(project.id, category.id, subcategory.id));
+
+const [bugReports, testCases] = await Promise.all([
+            getBugReport(project.id, null, subcategory.id, category.id),
+            getTestKey(project.id, null, subcategory.id, category.id)
+        ]);
+
+            const selectedSubcategory = { id: Number(subcategory.id), name: String(subcategory.name || 'Selected subcategory') };
+            const sections = [];
+
+            if (Array.isArray(bugReports) && bugReports.length > 0) {
+                sections.push(`
+                    <div class="subcategory-section">
+                        <h5>Bug Reports</h5>
+                        <div class="bug-list">
+                            ${bugReports.map((item) => `
+                                <div class="bug-card" data-bugreport-id="${item.id}">
+                                    <div class="bug-title">${item.title || item.name || `Ticket #${item.id}`}</div>
+                                    <div class="bug-meta">#${item.id} • ${item.status || ''} • ${item.priority || ''}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `);
+            }
+
+            if (Array.isArray(testCases) && testCases.length > 0) {
+                sections.push(`
+                    <div class="subcategory-section">
+                        <h5>Test Cases</h5>
+                        <div class="tc-list">
+                            ${testCases.map((item) => `
+                                <div class="tc-card" data-test-case-id="${item.id}">
+                                    <div class="tc-title">${item.name || `Test case #${item.id}`}</div>
+                                    <div class="tc-meta">#${item.id} • ${item.status || ''}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `);
+            }
+
+            if (sections.length === 0) {
+                mainContainer.innerHTML = `
+                    <div class="metrics">
+                        <h2 class="metrics-title">${selectedSubcategory.name}</h2>
+                    </div>
+                    <div class="main-empty">No bug reports or test cases for this subcategory.</div>
+                `;
+                return;
+            }
+
+            mainContainer.innerHTML = `
+                <div class="metrics">
+                    <h2 class="metrics-title">${selectedSubcategory.name}</h2>
+                </div>
+                <div class="subcategory-content">
+                    ${sections.join('')}
+                </div>
+            `;
+
+            mainContainer.querySelectorAll('.bug-card').forEach((card) => {
+                card.addEventListener('click', () => {
+                    const bugreportId = card.dataset.bugreportId;
+                    if (!project.id || !bugreportId) return;
+                    const url = `/bugreport.html?projectId=${encodeURIComponent(project.id)}&tickets=${encodeURIComponent(bugreportId)}`;
+                    window.open(url, '_blank');
+                });
+            });
+
+            mainContainer.querySelectorAll('.tc-card').forEach((card) => {
+                card.addEventListener('click', () => {
+                    const testCaseId = card.dataset.testCaseId;
+                    if (!project.id || !testCaseId) return;
+                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
+                    window.open(url, '_blank');
+                });
+            });
+        } finally {
+            activeSubcategoryRequests.delete(requestKey);
+        }
+
         renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state, sidebar));
     }
 });

@@ -18,6 +18,8 @@ export const getProjectCategories = async (projectId) => {
 };
 
 export const getCategorySubcategories = async (projectId, categoryId) => {
+    if (!projectId || !categoryId) return [];
+
     const endpoint = `/project/${categoryId}/subcategories`;
 
     try {
