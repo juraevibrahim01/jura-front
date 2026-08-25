@@ -35,6 +35,7 @@ const readProjectSubcategories = (projectId, categoryId) => {
 export const renderProjectsList = (container, projects, activeProjectId, state, actions = {}) => {
     container.innerHTML = '';
     state.expandedCategories = state.expandedCategories || {};
+    state.expandedSubcategories = state.expandedSubcategories || {};
 
     const title = createElement('div', 'projects-title', 'Projects');
     container.appendChild(title);
@@ -112,21 +113,64 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
                     const subcategoryText = createElement('span', 'subcategory-text', subcategory.name || 'Unnamed subcategory');
                     subcategoryItem.appendChild(subcategoryText);
 
-                    if (Number(activeCategoryId) === Number(category.id) && Number(activeSubcategoryId) === Number(subcategory.id)) {
+                    const isSelectedSubcategory = Number(activeCategoryId) === Number(category.id) && Number(activeSubcategoryId) === Number(subcategory.id);
+                    const isExpandedSubcategory = !!(
+                        state.expandedSubcategories[project.id] &&
+                        state.expandedSubcategories[project.id][category.id] &&
+                        state.expandedSubcategories[project.id][category.id][subcategory.id]
+                    );
+
+                    if (isSelectedSubcategory || isExpandedSubcategory) {
                         subcategoryItem.classList.add('active-subcategory');
                     }
 
                     const nestedChildren = createElement('div', 'submenu-subchildren');
-                    if (Number(activeCategoryId) === Number(category.id) && Number(activeSubcategoryId) === Number(subcategory.id)) {
+                    if (isSelectedSubcategory || isExpandedSubcategory) {
                         nestedChildren.classList.add('expanded');
 
                         const bugFolder = createElement('div', 'submenu-subchild', 'Bug Reports');
                         const testFolder = createElement('div', 'submenu-subchild', 'Test Cases');
+
+                        bugFolder.addEventListener('click', async (event) => {
+                            event.stopPropagation();
+                            if (actions.onSubcategorySectionSelect) {
+                                await actions.onSubcategorySectionSelect(project, category, subcategory, 'bugreports');
+                            }
+                        });
+
+                        testFolder.addEventListener('click', async (event) => {
+                            event.stopPropagation();
+                            if (actions.onSubcategorySectionSelect) {
+                                await actions.onSubcategorySectionSelect(project, category, subcategory, 'testcases');
+                            }
+                        });
+
                         nestedChildren.appendChild(bugFolder);
                         nestedChildren.appendChild(testFolder);
                     }
 
                     subcategoryItem.addEventListener('click', async () => {
+                        const currentExpanded = !!(
+                            state.expandedSubcategories[project.id] &&
+                            state.expandedSubcategories[project.id][category.id] &&
+                            state.expandedSubcategories[project.id][category.id][subcategory.id]
+                        );
+
+                        state.expandedSubcategories[project.id] = state.expandedSubcategories[project.id] || {};
+                        state.expandedSubcategories[project.id][category.id] = state.expandedSubcategories[project.id][category.id] || {};
+                        state.expandedSubcategories[project.id][category.id][subcategory.id] = !currentExpanded;
+
+                        if (state.expandedSubcategories[project.id][category.id][subcategory.id]) {
+                            localStorage.setItem(getSubcategoryStorageKey(project.id, category.id), String(subcategory.id));
+                        } else {
+                            localStorage.removeItem(getSubcategoryStorageKey(project.id, category.id));
+                        }
+
+                        if (!state.expandedSubcategories[project.id][category.id][subcategory.id]) {
+                            renderProjectsList(container, projects, state.activeProjectId, state, actions);
+                            return;
+                        }
+
                         if (actions.onSubcategorySelect) {
                             await actions.onSubcategorySelect(project, category, subcategory);
                         }
