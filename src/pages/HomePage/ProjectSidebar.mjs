@@ -16,7 +16,7 @@ const readProjectCategories = (projectId) => {
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
-    } catch (err) {
+    } catch (error) {
         return [];
     }
 };
@@ -27,7 +27,7 @@ const readProjectSubcategories = (projectId, categoryId) => {
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
-    } catch (err) {
+    } catch (error) {
         return [];
     }
 };
@@ -79,7 +79,11 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
             const categoryText = createElement('span', 'category-text', category.name);
             categoryItem.appendChild(categoryText);
 
-            if (state.activeSection === 'categories' && state.activeProjectId === project.id && Number(activeCategoryId) === Number(category.id)) {
+            if (
+                state.activeSection === 'categories' &&
+                state.activeProjectId === project.id &&
+                Number(activeCategoryId) === Number(category.id)
+            ) {
                 categoryItem.classList.add('active-sub');
             }
 
@@ -206,10 +210,8 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
             state.expanded[project.id] = !state.expanded[project.id];
             renderProjectsList(container, projects, state.activeProjectId, state, actions);
 
-            if (!state.activeProjectId || state.activeProjectId !== project.id) {
-                if (actions.onProjectSelect) {
-                    await actions.onProjectSelect(project);
-                }
+            if (actions.onProjectSelect) {
+                await actions.onProjectSelect(project);
             }
         });
     });
