@@ -20,7 +20,7 @@ export const getProjectCategories = async (projectId) => {
 export const getCategorySubcategories = async (projectId, categoryId) => {
     if (!projectId || !categoryId) return [];
 
-    const endpoint = `/project/${categoryId}/subcategories`;
+    const endpoint = `/category/${categoryId}/subcategories`;
 
     try {
         const response = await fetchJson(endpoint, {
