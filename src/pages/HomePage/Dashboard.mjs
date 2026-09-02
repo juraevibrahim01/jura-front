@@ -1,6 +1,7 @@
 import { getProjects, getProjectMetrics } from '../../api/projectapi.mjs';
 import { getProjectCategories, getCategorySubcategories } from '../../api/categoryapi.mjs';
-import { getBugReport } from '../../api/bagreportapi.mjs';
+import { getBugReport, createBugreport } from '../../api/bagreportapi.mjs';
+import { createBugReportModal } from '../../entities/BugReport/BugReport.mjs';
 import { getTestKey } from '../../api/testkeysapi.mjs';
 import { buildProjectCategoryRoute, setCurrentRoute } from '../../app/routes/routes.mjs';
 import { renderProjectsList } from './ProjectSidebar.mjs';
@@ -355,6 +356,9 @@ const createProjectHandlers = (projects, state, sidebar) => ({
                     <h2 class="metrics-title">${selectedSubcategory.name}</h2>
                 </div>
                 <div class="subcategory-content">
+                    <div class="subcategory-actions">
+                        ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
+                    </div>
                     <div class="subcategory-section">
                         <h5>${getSubcategorySectionTitle(view)}</h5>
                         <div class="subcategory-items-list">
@@ -391,6 +395,94 @@ const createProjectHandlers = (projects, state, sidebar) => ({
                     }
                 });
             });
+            // Attach create bug report modal for subcategory view
+            if (view === 'bugreports') {
+                const createBtn = mainContainer.querySelector('#openCreateBugReport');
+                if (createBtn) {
+                    createBtn.addEventListener('click', () => {
+                        if (document.getElementById('bugReportModal')) return;
+                        document.body.insertAdjacentHTML('beforeend', createBugReportModal());
+
+                        const modal = document.getElementById('bugReportModal');
+                        const closeBtn = document.getElementById('closeBugReportModal');
+                        const cancelBtn = document.getElementById('cancelBugReportModal');
+                        const form = document.getElementById('bugReportForm');
+
+                        const closeModal = () => {
+                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                        };
+
+                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+                        if (form) {
+                            form.addEventListener('submit', async (e) => {
+                                e.preventDefault();
+
+                                const payload = {
+                                    projectId: project.id,
+                                    userId: localStorage.getItem('userId') || '1',
+                                    Date: new Date().toISOString(),
+                                    Name: (document.getElementById('bugReportName') || {}).value || '',
+                                    Module: (document.getElementById('bugReportModule') || {}).value || '',
+                                    Precondition: (document.getElementById('bugReportPrecondition') || {}).value || '',
+                                    Steps: (document.getElementById('bugReportSteps') || {}).value || '',
+                                    ExpectationRes: (document.getElementById('bugReportExpectation') || {}).value || '',
+                                    ActualRes: (document.getElementById('bugReportActual') || {}).value || '',
+                                    Comment: (document.getElementById('bugReportComment') || {}).value || ''
+                                };
+
+                                try {
+                                    const req = {
+                                        projectId: project.id,
+                                        categoryId: category.id,
+                                        subcategoryId: subcategory.id,
+                                        userId: payload.userId,
+                                        title: (document.getElementById('bugReportTitle') || {}).value || payload.Name || '',
+                                        priority: (document.getElementById('bugReportPriority') || {}).value || 'Medium',
+                                        severity: (document.getElementById('bugReportSeverity') || {}).value || 'Normal',
+                                        environment: (document.getElementById('bugReportEnvironment') || {}).value || payload.Precondition || '',
+                                        steps: (document.getElementById('bugReportSteps') || {}).value || payload.Steps || '',
+                                        expected_result: (document.getElementById('bugReportExpected') || {}).value || payload.ExpectationRes || '',
+                                        actual_result: (document.getElementById('bugReportActual') || {}).value || payload.ActualRes || '',
+                                        attachments: (document.getElementById('bugReportAttachments') || {}).value || ''
+                                    };
+
+                                    const res = await createBugreport(req);
+                                    if (res) {
+                                        closeModal();
+                                        // refresh the list
+                                        const updated = await getBugReport(project.id, null, subcategory.id, category.id);
+                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
+                                        if (listEl) {
+                                            const itemsMarkup = Array.isArray(updated) && updated.length > 0
+                                                ? updated.map((item) => `
+                                                    <div class="subcategory-item-entry bug-entry" data-bugreport-id="${item.id}">${item.title || item.name || `Ticket #${item.id}`}</div>
+                                                `).join('')
+                                                : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
+                                            listEl.innerHTML = itemsMarkup;
+                                            // reattach click handlers for new items
+                                            mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
+                                                entry.addEventListener('click', () => {
+                                                    const bugreportId = entry.dataset.bugreportId;
+                                                    if (view === 'bugreports' && project.id && bugreportId) {
+                                                        const url = `/bugreport.html?projectId=${encodeURIComponent(project.id)}&tickets=${encodeURIComponent(bugreportId)}`;
+                                                        window.open(url, '_blank');
+                                                    }
+                                                });
+                                            });
+                                        }
+                                    } else {
+                                        console.error('Failed to create bug report');
+                                    }
+                                } catch (err) {
+                                    console.error('Error creating bug report', err);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
         } catch (error) {
             mainContainer.innerHTML = `
                 <div class="metrics">

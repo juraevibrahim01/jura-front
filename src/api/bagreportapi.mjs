@@ -10,53 +10,42 @@ export const getBugReport = async (project_id, id = null, subcategoryId = null, 
             'X-User-Email': 'juraevibrahim01@gmail.com'
         };
 
+        // Если указана подкатегория — использовать её endpoints
         if (subcategoryId) {
-            const candidateEndpoints = [
-                `/projects/${project_id}/categories/${categoryId || ''}/subcategories/${subcategoryId}/tickets`
-            ].filter((endpoint) => endpoint && !endpoint.includes('/categories//'));
-
-            for (const endpoint of candidateEndpoints) {
-                try {
-                    const response = await fetchJson(endpoint, {
-                        method: 'GET',
-                        headers
-                    });
-
-                    const items = Array.isArray(response?.tickets)
-                        ? response.tickets
-                        : Array.isArray(response?.data)
-                            ? response.data
-                            : [];
-
-                    if (items.length > 0 || response?.tickets !== undefined || response?.data !== undefined) {
-                        return items;
-                    }
-                } catch (err) {
-                    // continue to next candidate endpoint
-                }
+            const base = `/projects/${project_id}/categories/${categoryId || ''}/subcategories/${subcategoryId}/tickets`;
+            if (base.includes('/categories//')) {
+                return id ? null : [];
             }
 
-            return [];
+            const endpoint = id ? `${base}/${id}` : base;
+            const response = await fetchJson(endpoint, { method: 'GET', headers });
+
+            // Если запрос вернул список
+            if (!id) {
+                return Array.isArray(response?.tickets)
+                    ? response.tickets
+                    : Array.isArray(response?.data)
+                        ? response.data
+                        : [];
+            }
+
+            // Если запрос вернул объект тикета
+            return response?.tickets ?? response?.ticket ?? response?.data ?? response ?? null;
         }
 
+        // Без подкатегории — использовать проектные endpoints
         if (!id) {
-            // Без ID → получить все Багрепорты проекта
-            const response = await fetchJson(`/projects/${project_id}/tickets`, {
-                method: 'GET',
-                headers
-            });
-            return response?.tickets || [];
-        } else {
-            // С ID → получить конкретный багрепорт
-            const response = await fetchJson(`/projects/${project_id}/tickets/${id}`, {
-                method: 'GET',
-                headers
-            });
-
-            console.log(response);
-
-            return response;
+            const response = await fetchJson(`/projects/${project_id}/tickets`, { method: 'GET', headers });
+            return Array.isArray(response?.tickets)
+                ? response.tickets
+                : Array.isArray(response?.data)
+                    ? response.data
+                    : [];
         }
+
+        // Если указан ID — запросить конкретный тикет по проекту
+        const itemResponse = await fetchJson(`/projects/${project_id}/tickets/${id}`, { method: 'GET', headers });
+        return itemResponse?.tickets ?? itemResponse?.ticket ?? itemResponse?.data ?? itemResponse ?? null;
     } catch (error) {
         console.error(`Error fetching Bugreports ${id}:`, error);
         return id ? null : [];
@@ -64,29 +53,30 @@ export const getBugReport = async (project_id, id = null, subcategoryId = null, 
 };
 
 // Создать новый багрепорт
-export const createTestKey = async (request) => {
+export const createBugreport = async (request) => {
     try {
-        // Отправить запрос с данными тест-кейса в body и ID пользователя/проекта в headers
-        const response = await fetchJson(`/projects/${request.projectId}/tickets`, {
+        // Отправить запрос с данными багрепорта в body и ID пользователя/проекта в headers
+        const response = await fetchJson(`/projects/${request.projectId}/categories/${request.categoryId}/subcategories/${request.subcategoryId}/tickets`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-User-UserID': request.userId || '1'
+                'X-User-UserID': request.userId || '1',
+                'X-User-Email': 'juraevibrahim01@gmail.com'
             },
             body: JSON.stringify({
-                Date: request.Date,
-                Name: request.Name,
-                Module: request.Module,
-                Precondition: request.Precondition,
-                Steps: request.Steps,
-                ExpectationRes: request.ExpectationRes,
-                ActualRes: request.ActualRes,
-                Comment: request.Comment
+                title: request.title,
+                priority: request.priority,
+                severity: request.severity,
+                environment: request.environment,
+                steps: request.steps,
+                expected_result: request.expected_result,
+                actual_result: request.actual_result,
+                attachments: request.attachments || "",
             })
         });
         return response;
     } catch (error) {
-        console.error('Error creating test key:', error);
+        console.error('Error creating bugreport:', error);
         return null;
     }
 };

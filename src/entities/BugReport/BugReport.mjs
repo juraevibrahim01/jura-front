@@ -67,9 +67,8 @@ export const BugReports = (bugReports = []) => {
 
         </div>
     `;
-};
 
-// ----------------------- create bug report modal -----------------------
+};
 
 export const createBugReportModal = () => {
 
@@ -104,49 +103,60 @@ export const createBugReportModal = () => {
 
                     <form id="bugReportForm">
 
-
                         <div class="form-group">
 
-                            <label for="bugReportName">
-                                Name *
+                            <label for="bugReportTitle">
+                                Title *
                             </label>
 
                             <input
                                 type="text"
-                                id="bugReportName"
-                                name="Name"
+                                id="bugReportTitle"
+                                name="title"
                                 required
-                                placeholder="Bug report name"
+                                placeholder="Bug report title"
                             />
 
                         </div>
 
                         <div class="form-group">
 
-                            <label for="bugReportModule">
-                                Module *
+                            <label for="bugReportPriority">
+                                Priority
                             </label>
 
-                            <input
-                                type="text"
-                                id="bugReportModule"
-                                name="Module"
-                                required
-                                placeholder="Module name"
-                            />
+                            <select id="bugReportPriority" name="priority">
+                                <option value="Low">Low</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="High">High</option>
+                            </select>
 
                         </div>
 
                         <div class="form-group">
 
-                            <label for="bugReportPrecondition">
-                                Precondition
+                            <label for="bugReportSeverity">
+                                Severity
+                            </label>
+
+                            <select id="bugReportSeverity" name="severity">
+                                <option value="Minor">Minor</option>
+                                <option value="Normal" selected>Normal</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+
+                        </div>
+
+                        <div class="form-group">
+
+                            <label for="bugReportEnvironment">
+                                Environment
                             </label>
 
                             <textarea
-                                id="bugReportPrecondition"
-                                name="Precondition"
-                                placeholder="Precondition"
+                                id="bugReportEnvironment"
+                                name="environment"
+                                placeholder="Environment / Precondition"
                             ></textarea>
 
                         </div>
@@ -159,7 +169,7 @@ export const createBugReportModal = () => {
 
                             <textarea
                                 id="bugReportSteps"
-                                name="Steps"
+                                name="steps"
                                 required
                                 placeholder="Steps to reproduce the bug"
                             ></textarea>
@@ -168,13 +178,13 @@ export const createBugReportModal = () => {
 
                         <div class="form-group">
 
-                            <label for="bugReportExpectation">
+                            <label for="bugReportExpected">
                                 Expected Result *
                             </label>
 
                             <textarea
-                                id="bugReportExpectation"
-                                name="ExpectationRes"
+                                id="bugReportExpected"
+                                name="expected_result"
                                 required
                                 placeholder="Expected result"
                             ></textarea>
@@ -189,7 +199,7 @@ export const createBugReportModal = () => {
 
                             <textarea
                                 id="bugReportActual"
-                                name="ActualRes"
+                                name="actual_result"
                                 required
                                 placeholder="Actual result"
                             ></textarea>
@@ -198,15 +208,16 @@ export const createBugReportModal = () => {
 
                         <div class="form-group">
 
-                            <label for="bugReportComment">
-                                Comment
+                            <label for="bugReportAttachments">
+                                Attachments
                             </label>
 
-                            <textarea
-                                id="bugReportComment"
-                                name="Comment"
-                                placeholder="Comment"
-                            ></textarea>
+                            <input
+                                type="text"
+                                id="bugReportAttachments"
+                                name="attachments"
+                                placeholder="Attachment URLs or comma-separated list"
+                            />
 
                         </div>
 
