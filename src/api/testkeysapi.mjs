@@ -2,6 +2,24 @@ import { fetchJson } from './api.mjs';
 
 const PROJECTS_STORAGE_KEY = 'projects';
 
+const hasRealNumericId = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+
+const buildTestCaseEndpoint = (projectId, categoryId = null, subcategoryId = null, forCreate = false) => {
+    const safeProjectId = projectId ?? '';
+    const safeCategoryId = hasRealNumericId(categoryId) ? Number(categoryId) : null;
+    const safeSubcategoryId = hasRealNumericId(subcategoryId) ? Number(subcategoryId) : null;
+
+    if (!safeProjectId) {
+        return null;
+    }
+
+    if (safeCategoryId !== null && safeSubcategoryId !== null) {
+        return `/projects/${safeProjectId}/categories/${safeCategoryId}/subcategories/${safeSubcategoryId}/test-cases`;
+    }
+
+    return `/projects/${safeProjectId}/test-cases`;
+};
+
 // Получить тест-кейсы проекта или конкретный тест-кейс по ID
 export const getTestKey = async (project_id, id = null, subcategoryId = null, categoryId = null) => {
     try {
@@ -10,53 +28,49 @@ export const getTestKey = async (project_id, id = null, subcategoryId = null, ca
             'X-User-Email': 'juraevibrahim01@gmail.com'
         };
 
-        if (subcategoryId) {
-            const candidateEndpoints = [
-                `/projects/${project_id}/categories/${categoryId || ''}/subcategories/${subcategoryId}/test-cases`
-            ].filter((endpoint) => endpoint && !endpoint.includes('/categories//'));
+        const subcategoryPathIsValid = hasRealNumericId(categoryId) && hasRealNumericId(subcategoryId);
 
-            for (const endpoint of candidateEndpoints) {
-                try {
-                    const response = await fetchJson(endpoint, {
-                        method: 'GET',
-                        headers
-                    });
+        if (subcategoryId && subcategoryPathIsValid) {
+            const endpoint = buildTestCaseEndpoint(project_id, categoryId, subcategoryId);
 
-                    const items = Array.isArray(response?.test_keys)
-                        ? response.test_keys
-                        : Array.isArray(response?.data)
-                            ? response.data
-                            : [];
+            try {
+                const response = await fetchJson(endpoint, {
+                    method: 'GET',
+                    headers
+                });
 
-                    if (items.length > 0 || response?.test_keys !== undefined || response?.data !== undefined) {
-                        return items;
-                    }
-                } catch (err) {
-                    // continue to next candidate endpoint
+                const items = Array.isArray(response?.test_keys)
+                    ? response.test_keys
+                    : Array.isArray(response?.data)
+                        ? response.data
+                        : [];
+
+                if (items.length > 0 || response?.test_keys !== undefined || response?.data !== undefined) {
+                    return items;
                 }
+            } catch (err) {
+                // continue to fallback below
             }
 
             return [];
         }
 
         if (!id) {
-            // Без ID → получить все тест-кейсы проекта
-            const response = await fetchJson(`/projects/${project_id}/test-cases`, {
-                    method: 'GET',
-                    headers
-                });
-            return response?.test_keys || [];
-        } else {
-            // С ID → получить конкретный тест-кейс
-            const response = await fetchJson(`/projects/${project_id}/test-cases/${id}`, {
+            const endpoint = buildTestCaseEndpoint(project_id);
+            const response = await fetchJson(endpoint, {
                 method: 'GET',
                 headers
             });
-
-            console.log(response);
-
-            return response;
+            return response?.test_keys || [];
         }
+
+        const response = await fetchJson(buildTestCaseEndpoint(project_id), {
+            method: 'GET',
+            headers
+        });
+
+        console.log(response);
+        return response;
     } catch (error) {
         console.error(`Error fetching test key ${id}:`, error);
         return id ? null : [];
@@ -66,8 +80,20 @@ export const getTestKey = async (project_id, id = null, subcategoryId = null, ca
 // Создать новый тест-кейс
 export const createTestKey = async (request) => {
     try {
+        if (!request?.projectId) {
+            console.error('Missing projectId for creating test key');
+            return null;
+        }
+
+        const endpoint = buildTestCaseEndpoint(request.projectId, request.categoryId, request.subcategoryId, true);
+
+        if (!endpoint) {
+            console.error('Invalid test key endpoint: missing projectId');
+            return null;
+        }
+
         // Отправить запрос с данными тест-кейса в body и ID пользователя/проекта в headers
-        const response = await fetchJson(`/projects/${request.projectId}/test-cases`, {
+        const response = await fetchJson(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -75,14 +101,15 @@ export const createTestKey = async (request) => {
                 'X-User-UserID': request.userId || '1'
             },
             body: JSON.stringify({
-                Date: request.Date,
+                Date: request.Date || request.date || new Date().toISOString().split('T')[0],
                 Name: request.Name,
                 Module: request.Module,
                 Precondition: request.Precondition,
                 Steps: request.Steps,
                 ExpectationRes: request.ExpectationRes,
-                ActualRes: request.ActualRes,
-                Comment: request.Comment
+                ActualRes: request.ActualRes || '',
+                Comment: request.Comment || '',
+                Status: request.Status || request.status || 'New'
             })
         });
         return response;

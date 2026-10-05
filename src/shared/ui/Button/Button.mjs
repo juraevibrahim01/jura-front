@@ -37,15 +37,15 @@ export const initButtonListeners = () => {
         // Отправка формы при клике на "Create Test Case"
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             // Получить данные пользователя и проекта из localStorage
             const userId = localStorage.getItem('userId') || '1';
             const projectId = localStorage.getItem('activeProjectId') || '1'; // Сохранено при выборе проекта
-            
+
             // Собрать данные из полей формы
             const formData = new FormData(form);
             const testKeyData = {
-                Date: new Date().toISOString().split('T')[0], // Текущая дата
+                Date: formData.get('Date') || new Date().toISOString().split('T')[0],
                 Name: formData.get('Name'),
                 Module: formData.get('Module'),
                 Precondition: formData.get('Precondition'),
@@ -53,10 +53,11 @@ export const initButtonListeners = () => {
                 ExpectationRes: formData.get('ExpectationRes'),
                 ActualRes: formData.get('ActualRes') || '',
                 Comment: formData.get('Comment') || '',
+                Status: formData.get('Status') || 'New',
                 userId: userId,
                 projectId: projectId
             };
-            
+
             try {
                 // Отправить данные на сервер
                 const result = await createTestKey(testKeyData);

@@ -33,6 +33,8 @@ export const TestKeys = (testCases = []) => {
 };
 
 export const createTestKeyModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+
     return `
         <div id="testKeyModal" class="modal-overlay">
             <div class="modal-content">
@@ -43,40 +45,56 @@ export const createTestKeyModal = () => {
                 <div class="modal-body">
                     <form id="testKeyForm">
                         <div class="form-group">
+                            <label for="testKeyDate">Date *</label>
+                            <input type="date" id="testKeyDate" name="Date" value="${today}" required />
+                        </div>
+
+                        <div class="form-group">
                             <label for="testKeyName">Name *</label>
                             <input type="text" id="testKeyName" name="Name" required placeholder="Test case name" />
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="testKeyModule">Module *</label>
                             <input type="text" id="testKeyModule" name="Module" required placeholder="Module name" />
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="testKeyPrecondition">Precondition *</label>
                             <textarea id="testKeyPrecondition" name="Precondition" required placeholder="Precondition"></textarea>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="testKeySteps">Steps *</label>
                             <textarea id="testKeySteps" name="Steps" required placeholder="Steps"></textarea>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="testKeyExpectation">Expected Result *</label>
                             <textarea id="testKeyExpectation" name="ExpectationRes" required placeholder="Expected result"></textarea>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="testKeyActual">Actual Result</label>
                             <textarea id="testKeyActual" name="ActualRes" placeholder="Actual result"></textarea>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="testKeyComment">Comment</label>
                             <textarea id="testKeyComment" name="Comment" placeholder="Comment"></textarea>
                         </div>
-                        
+
+                        <div class="form-group">
+                            <label for="testKeyStatus">Status</label>
+                            <select id="testKeyStatus" name="Status">
+                                <option value="New" selected>New</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Passed">Passed</option>
+                                <option value="Failed">Failed</option>
+                                <option value="Blocked">Blocked</option>
+                            </select>
+                        </div>
+
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">Create Test Case</button>
                             <button type="button" class="btn-secondary" id="cancelModal">Cancel</button>

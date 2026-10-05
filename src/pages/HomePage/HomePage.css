@@ -536,6 +536,22 @@
 }
 
 /* main content cards */
+.category-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.category-action-btn {
+    min-width: 160px;
+}
+
+.category-action-btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .metrics {
     background: white;
     padding: 18px;

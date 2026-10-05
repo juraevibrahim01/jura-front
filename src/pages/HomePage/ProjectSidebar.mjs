@@ -60,8 +60,11 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
         }
 
         const categories = readProjectCategories(project.id);
-        const activeCategoryId = Number(localStorage.getItem(getCategoryStorageKey(project.id)) || 0);
-        const activeSubcategoryId = Number(localStorage.getItem(getSubcategoryStorageKey(project.id, activeCategoryId)) || 0);
+        const storedCategoryId = Number(localStorage.getItem(getCategoryStorageKey(project.id)));
+        const activeCategoryId = Number.isFinite(storedCategoryId) && storedCategoryId > 0 ? storedCategoryId : 0;
+
+        const storedSubcategoryId = Number(localStorage.getItem(getSubcategoryStorageKey(project.id, activeCategoryId)));
+        const activeSubcategoryId = Number.isFinite(storedSubcategoryId) && storedSubcategoryId > 0 ? storedSubcategoryId : 0;
 
         categories.forEach((category) => {
             const categoryGroup = createElement('div', 'submenu-category-group');

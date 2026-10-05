@@ -1,19 +1,41 @@
 import { fetchJson } from './api.mjs';
 
+const getHeaders = () => ({
+    'X-User-UserID': '1',
+    'X-User-Email': 'juraevibrahim01@gmail.com'
+});
+
 export const getProjectCategories = async (projectId) => {
     try {
         const response = await fetchJson(`/project/${projectId}/categories`, {
             method: 'GET',
-            headers: {
-                'X-User-UserID': '1',
-                'X-User-Email': 'juraevibrahim01@gmail.com'
-            }
+            headers: getHeaders()
         });
 
         return Array.isArray(response?.categories) ? response.categories : [];
     } catch (error) {
         console.error('Error fetching categories:', error);
         return [];
+    }
+};
+
+export const createProjectCategory = async (projectId, name) => {
+    if (!projectId || !name || !String(name).trim()) return null;
+
+    try {
+        const response = await fetchJson(`/project/${projectId}/categories`, {
+            method: 'POST',
+            headers: {
+                ...getHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: String(name).trim() })
+        });
+
+        return response?.category || response?.data || response || null;
+    } catch (error) {
+        console.error('Error creating category:', error);
+        return null;
     }
 };
 
@@ -25,10 +47,7 @@ export const getCategorySubcategories = async (projectId, categoryId) => {
     try {
         const response = await fetchJson(endpoint, {
             method: 'GET',
-            headers: {
-                'X-User-UserID': '1',
-                'X-User-Email': 'juraevibrahim01@gmail.com'
-            }
+            headers: getHeaders()
         });
 
         const subcategories = Array.isArray(response?.subcategories)
@@ -41,5 +60,25 @@ export const getCategorySubcategories = async (projectId, categoryId) => {
     } catch (error) {
         console.error('Error fetching subcategories:', error);
         return [];
+    }
+};
+
+export const createCategorySubcategory = async (categoryId, name) => {
+    if (!categoryId || !name || !String(name).trim()) return null;
+
+    try {
+        const response = await fetchJson(`/category/${categoryId}/subcategories`, {
+            method: 'POST',
+            headers: {
+                ...getHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: String(name).trim() })
+        });
+
+        return response?.subcategory || response?.data || response || null;
+    } catch (error) {
+        console.error('Error creating subcategory:', error);
+        return null;
     }
 };

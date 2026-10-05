@@ -1,8 +1,14 @@
 import { getProjects, getProjectMetrics } from '../../api/projectapi.mjs';
-import { getProjectCategories, getCategorySubcategories } from '../../api/categoryapi.mjs';
+import {
+    getProjectCategories,
+    getCategorySubcategories,
+    createProjectCategory,
+    createCategorySubcategory
+} from '../../api/categoryapi.mjs';
 import { getBugReport, createBugreport } from '../../api/bagreportapi.mjs';
 import { createBugReportModal } from '../../entities/BugReport/BugReport.mjs';
-import { getTestKey } from '../../api/testkeysapi.mjs';
+import { getTestKey, createTestKey } from '../../api/testkeysapi.mjs';
+import { createTestKeyModal } from '../../entities/test_keys/TestKeys.mjs';
 import { buildProjectCategoryRoute, setCurrentRoute } from '../../app/routes/routes.mjs';
 import { renderProjectsList } from './ProjectSidebar.mjs';
 
@@ -80,6 +86,50 @@ const readSubcategoriesFromStorage = (projectId, categoryId) => {
     return Array.isArray(cached) ? cached : [];
 };
 
+const createEntityId = (items = []) => {
+    const numericIds = items
+        .map((item) => Number(item?.id))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+    return numericIds.length > 0 ? Math.max(...numericIds) + 1 : Date.now();
+};
+
+const addProjectCategory = (projectId, categoryName) => {
+    if (!projectId) return null;
+
+    const trimmedName = String(categoryName || '').trim();
+    if (!trimmedName) return null;
+
+    const categories = readProjectCategoriesFromStorage(projectId);
+    const category = {
+        id: createEntityId(categories),
+        name: trimmedName
+    };
+
+    const nextCategories = [...categories, category];
+    saveProjectCategories(projectId, nextCategories);
+    saveSelectedCategory(projectId, category.id);
+    return category;
+};
+
+const addProjectSubcategory = (projectId, categoryId, subcategoryName) => {
+    if (!projectId || !categoryId) return null;
+
+    const trimmedName = String(subcategoryName || '').trim();
+    if (!trimmedName) return null;
+
+    const subcategories = readSubcategoriesFromStorage(projectId, categoryId);
+    const subcategory = {
+        id: createEntityId(subcategories),
+        name: trimmedName
+    };
+
+    const nextSubcategories = [...subcategories, subcategory];
+    saveProjectSubcategories(projectId, categoryId, nextSubcategories);
+    saveSelectedSubcategory(projectId, categoryId, subcategory.id);
+    return subcategory;
+};
+
 // ------------------------------------------------------------
 // Loaders for project hierarchy
 // ------------------------------------------------------------
@@ -113,14 +163,15 @@ const loadSubcategoriesForCategory = async (projectId, categoryId, forceRefresh 
 const buildProjectHierarchy = async (projectId) => {
     const categories = await loadProjectCategories(projectId);
 
-    const activeCategoryId = Number(
-        localStorage.getItem(getCategoryStorageKey(projectId)) || categories[0]?.id || 0
-    );
+    const storedCategoryId = Number(localStorage.getItem(getCategoryStorageKey(projectId)));
+    const activeCategoryId = Number.isFinite(storedCategoryId) && storedCategoryId > 0
+        ? storedCategoryId
+        : (Number(categories[0]?.id) > 0 ? Number(categories[0].id) : null);
 
     const activeCategory =
-        categories.find((category) => Number(category.id) === Number(activeCategoryId)) ||
-        categories[0] ||
-        null;
+        activeCategoryId !== null
+            ? categories.find((category) => Number(category.id) === Number(activeCategoryId)) || categories[0] || null
+            : categories[0] || null;
 
     const subcategories = activeCategory
         ? await loadSubcategoriesForCategory(projectId, activeCategory.id)
@@ -132,7 +183,7 @@ const buildProjectHierarchy = async (projectId) => {
 
     if (
         activeCategory &&
-        (!activeSubcategoryId || !subcategories.some((subcategory) => Number(subcategory.id) === Number(activeSubcategoryId))) &&
+        (!activeSubcategoryId || Number(activeSubcategoryId) <= 0 || !subcategories.some((subcategory) => Number(subcategory.id) === Number(activeSubcategoryId))) &&
         subcategories.length > 0
     ) {
         activeSubcategoryId = String(subcategories[0].id);
@@ -176,6 +227,26 @@ const renderProjectCategories = async (projectId) => {
 
     return `
         <div class="categories-panel">
+            <div class="category-actions">
+                <button
+                    type="button"
+                    class="btn-primary category-action-btn"
+                    data-action="create-category"
+                    data-project-id="${projectId}"
+                >
+                    Add category
+                </button>
+                <button
+                    type="button"
+                    class="btn-secondary category-action-btn"
+                    data-action="create-subcategory"
+                    data-project-id="${projectId}"
+                    data-category-id="${activeCategory?.id || ''}"
+                    ${activeCategory ? '' : 'disabled'}
+                >
+                    Add subcategory
+                </button>
+            </div>
             ${activeCategory ? `
                 <div class="subcategory-panel">
                     <div class="category-row">
@@ -229,6 +300,63 @@ const renderProjectCategories = async (projectId) => {
 };
 
 let mainContainer = null;
+const dashboardContext = {
+    state: null,
+    sidebar: null,
+    projects: []
+};
+
+const renderEntityModal = ({ title, fieldLabel, submitLabel, onSubmit }) => {
+    const modalId = 'categoryEntityModal';
+    if (document.getElementById(modalId)) return;
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="${modalId}" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>${title}</h2>
+                    <button type="button" class="modal-close" data-close-modal="true">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="entityForm">
+                        <div class="form-group">
+                            <label for="entityName">${fieldLabel}</label>
+                            <input id="entityName" type="text" name="name" required placeholder="Enter name" />
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">${submitLabel}</button>
+                            <button type="button" class="btn-secondary" data-close-modal="true">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `);
+
+    const modal = document.getElementById(modalId);
+    const form = document.getElementById('entityForm');
+    const closeModal = () => {
+        if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+    };
+
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+    });
+
+    modal.querySelectorAll('[data-close-modal="true"]').forEach((button) => {
+        button.addEventListener('click', closeModal);
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        const name = String(formData.get('name') || '').trim();
+        if (!name) return;
+
+        await onSubmit(name, closeModal);
+    });
+};
 
 const showProjectMetrics = async (projectId) => {
     if (!mainContainer) return;
@@ -263,6 +391,93 @@ const showProjectMetrics = async (projectId) => {
                 await showProjectMetrics(folderProjectId);
             });
         });
+
+        const createCategoryButton = mainContainer.querySelector('[data-action="create-category"]');
+        if (createCategoryButton) {
+            createCategoryButton.addEventListener('click', async () => {
+                const projectId = createCategoryButton.dataset.projectId;
+                if (!projectId) return;
+
+                renderEntityModal({
+                    title: 'Add category',
+                    fieldLabel: 'Category name',
+                    submitLabel: 'Create category',
+                    onSubmit: async (name, closeModal) => {
+                        const response = await createProjectCategory(projectId, name);
+                        if (!response) {
+                            alert('Failed to create category');
+                            return;
+                        }
+
+                        const currentCategory = response?.category || response?.data || response;
+                        const categoryName = currentCategory?.name || name;
+                        const categoryId = currentCategory?.id ?? createEntityId(readProjectCategoriesFromStorage(projectId));
+
+                        const cachedCategories = readProjectCategoriesFromStorage(projectId);
+                        const nextCategories = [...cachedCategories.filter((item) => Number(item.id) !== Number(categoryId)), {
+                            id: Number(categoryId),
+                            name: String(categoryName)
+                        }];
+                        saveProjectCategories(projectId, nextCategories);
+                        saveSelectedCategory(projectId, categoryId);
+
+                        closeModal();
+                        renderProjectsList(
+                            dashboardContext.sidebar,
+                            dashboardContext.projects,
+                            dashboardContext.state?.activeProjectId,
+                            dashboardContext.state,
+                            createProjectHandlers(dashboardContext.projects, dashboardContext.state, dashboardContext.sidebar)
+                        );
+                        await showProjectMetrics(projectId);
+                    }
+                });
+            });
+        }
+
+        const createSubcategoryButton = mainContainer.querySelector('[data-action="create-subcategory"]');
+        if (createSubcategoryButton) {
+            createSubcategoryButton.addEventListener('click', async () => {
+                const projectId = createSubcategoryButton.dataset.projectId;
+                const categoryId = createSubcategoryButton.dataset.categoryId;
+                if (!projectId || !categoryId) return;
+
+                renderEntityModal({
+                    title: 'Add subcategory',
+                    fieldLabel: 'Subcategory name',
+                    submitLabel: 'Create subcategory',
+                    onSubmit: async (name, closeModal) => {
+                        const response = await createCategorySubcategory(categoryId, name);
+                        if (!response) {
+                            alert('Failed to create subcategory');
+                            return;
+                        }
+
+                        const currentSubcategory = response?.subcategory || response?.data || response;
+                        const subcategoryName = currentSubcategory?.name || name;
+                        const subcategoryId = currentSubcategory?.id ?? createEntityId(readSubcategoriesFromStorage(projectId, categoryId));
+
+                        const cachedSubcategories = readSubcategoriesFromStorage(projectId, categoryId);
+                        const nextSubcategories = [...cachedSubcategories.filter((item) => Number(item.id) !== Number(subcategoryId)), {
+                            id: Number(subcategoryId),
+                            name: String(subcategoryName)
+                        }];
+                        saveProjectSubcategories(projectId, categoryId, nextSubcategories);
+                        saveSelectedSubcategory(projectId, categoryId, subcategoryId);
+
+                        closeModal();
+                        renderProjectsList(
+                            dashboardContext.sidebar,
+                            dashboardContext.projects,
+                            dashboardContext.state?.activeProjectId,
+                            dashboardContext.state,
+                            createProjectHandlers(dashboardContext.projects, dashboardContext.state, dashboardContext.sidebar)
+                        );
+                        await showProjectMetrics(projectId);
+                    }
+                });
+            });
+        }
     } catch (error) {
         mainContainer.innerHTML = '<div class="main-error">Failed to load metrics</div>';
     }
@@ -358,6 +573,7 @@ const createProjectHandlers = (projects, state, sidebar) => ({
                 <div class="subcategory-content">
                     <div class="subcategory-actions">
                         ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
+                        ${view === 'testcases' ? `<button id="openCreateTestCase" class="btn-primary">Create Test Case</button>` : ''}
                     </div>
                     <div class="subcategory-section">
                         <h5>${getSubcategorySectionTitle(view)}</h5>
@@ -395,7 +611,7 @@ const createProjectHandlers = (projects, state, sidebar) => ({
                     }
                 });
             });
-            // Attach create bug report modal for subcategory view
+            // Attach create modal handlers for subcategory view
             if (view === 'bugreports') {
                 const createBtn = mainContainer.querySelector('#openCreateBugReport');
                 if (createBtn) {
@@ -483,13 +699,224 @@ const createProjectHandlers = (projects, state, sidebar) => ({
                     });
                 }
             }
+
+            if (view === 'testcases') {
+                const createBtn = mainContainer.querySelector('#openCreateTestCase');
+                if (createBtn) {
+                    createBtn.addEventListener('click', () => {
+                        if (document.getElementById('testKeyModal')) return;
+                        document.body.insertAdjacentHTML('beforeend', createTestKeyModal());
+
+                        const modal = document.getElementById('testKeyModal');
+                        const closeBtn = document.getElementById('closeModal');
+                        const cancelBtn = document.getElementById('cancelModal');
+                        const form = document.getElementById('testKeyForm');
+
+                        const closeModal = () => {
+                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                        };
+
+                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+                        modal.addEventListener('click', (e) => {
+                            if (e.target === modal) {
+                                closeModal();
+                            }
+                        });
+
+                        if (form) {
+                            form.addEventListener('submit', async (e) => {
+                                e.preventDefault();
+
+                                const formData = new FormData(form);
+                                const payload = {
+                                    projectId: project.id,
+                                    userId: localStorage.getItem('userId') || '1',
+                                    Date: formData.get('Date') || new Date().toISOString().split('T')[0],
+                                    Name: formData.get('Name') || '',
+                                    Module: formData.get('Module') || '',
+                                    Precondition: formData.get('Precondition') || '',
+                                    Steps: formData.get('Steps') || '',
+                                    ExpectationRes: formData.get('ExpectationRes') || '',
+                                    ActualRes: formData.get('ActualRes') || '',
+                                    Comment: formData.get('Comment') || '',
+                                    Status: formData.get('Status') || 'New'
+                                };
+
+                                try {
+                                    const res = await createTestKey(payload);
+                                    if (res) {
+                                        closeModal();
+                                        const updated = await getTestKey(project.id, null, subcategory.id, category.id);
+                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
+                                        if (listEl) {
+                                            const itemsMarkup = Array.isArray(updated) && updated.length > 0
+                                                ? updated.map((item) => `
+                                                    <div class="subcategory-item-entry tc-entry" data-test-case-id="${item.id}">${item.name || `Test case #${item.id}`}</div>
+                                                `).join('')
+                                                : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
+                                            listEl.innerHTML = itemsMarkup;
+                                            mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
+                                                entry.addEventListener('click', () => {
+                                                    const testCaseId = entry.dataset.testCaseId;
+                                                    if (view === 'testcases' && project.id && testCaseId) {
+                                                        const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
+                                                        window.open(url, '_blank');
+                                                    }
+                                                });
+                                            });
+                                        }
+                                    } else {
+                                        console.error('Failed to create test case');
+                                    }
+                                } catch (err) {
+                                    console.error('Error creating test case', err);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
         } catch (error) {
             mainContainer.innerHTML = `
                 <div class="metrics">
                     <h2 class="metrics-title">${selectedSubcategory.name}</h2>
                 </div>
-                <div class="main-error">Failed to load ${view === 'testcases' ? 'test cases' : 'bug reports'}.</div>
+                <div class="subcategory-content">
+                    <div class="subcategory-actions">
+                        ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
+                        ${view === 'testcases' ? `<button id="openCreateTestCase" class="btn-primary">Create Test Case</button>` : ''}
+                    </div>
+                    <div class="subcategory-section">
+                        <h5>${getSubcategorySectionTitle(view)}</h5>
+                        <div class="main-error">Failed to load ${view === 'testcases' ? 'test cases' : 'bug reports'}.</div>
+                    </div>
+                </div>
             `;
+
+            if (view === 'bugreports') {
+                const createBtn = mainContainer.querySelector('#openCreateBugReport');
+                if (createBtn) {
+                    createBtn.addEventListener('click', () => {
+                        if (document.getElementById('bugReportModal')) return;
+                        document.body.insertAdjacentHTML('beforeend', createBugReportModal());
+
+                        const modal = document.getElementById('bugReportModal');
+                        const closeBtn = document.getElementById('closeBugReportModal');
+                        const cancelBtn = document.getElementById('cancelBugReportModal');
+                        const form = document.getElementById('bugReportForm');
+
+                        const closeModal = () => {
+                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                        };
+
+                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+                        if (form) {
+                            form.addEventListener('submit', async (e) => {
+                                e.preventDefault();
+
+                                const payload = {
+                                    projectId: project.id,
+                                    categoryId: category.id,
+                                    subcategoryId: subcategory.id,
+                                    userId: localStorage.getItem('userId') || '1',
+                                    title: (document.getElementById('bugReportTitle') || {}).value || '',
+                                    priority: (document.getElementById('bugReportPriority') || {}).value || 'Medium',
+                                    severity: (document.getElementById('bugReportSeverity') || {}).value || 'Normal',
+                                    environment: (document.getElementById('bugReportEnvironment') || {}).value || '',
+                                    steps: (document.getElementById('bugReportSteps') || {}).value || '',
+                                    expected_result: (document.getElementById('bugReportExpected') || {}).value || '',
+                                    actual_result: (document.getElementById('bugReportActual') || {}).value || '',
+                                    attachments: (document.getElementById('bugReportAttachments') || {}).value || ''
+                                };
+
+                                try {
+                                    const res = await createBugreport(payload);
+                                    if (res) {
+                                        closeModal();
+                                        const updated = await getBugReport(project.id, null, subcategory.id, category.id);
+                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
+                                        if (listEl) {
+                                            listEl.innerHTML = Array.isArray(updated) && updated.length > 0 ? updated.map((item) => `
+                                                <div class="subcategory-item-entry bug-entry" data-bugreport-id="${item.id}">${item.title || item.name || `Ticket #${item.id}`}</div>
+                                            `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('Error creating bug report', err);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+
+            if (view === 'testcases') {
+                const createBtn = mainContainer.querySelector('#openCreateTestCase');
+                if (createBtn) {
+                    createBtn.addEventListener('click', () => {
+                        if (document.getElementById('testKeyModal')) return;
+                        document.body.insertAdjacentHTML('beforeend', createTestKeyModal());
+
+                        const modal = document.getElementById('testKeyModal');
+                        const closeBtn = document.getElementById('closeModal');
+                        const cancelBtn = document.getElementById('cancelModal');
+                        const form = document.getElementById('testKeyForm');
+
+                        const closeModal = () => {
+                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                        };
+
+                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+                        if (modal) {
+                            modal.addEventListener('click', (e) => {
+                                if (e.target === modal) closeModal();
+                            });
+                        }
+
+                        if (form) {
+                            form.addEventListener('submit', async (e) => {
+                                e.preventDefault();
+
+                                const formData = new FormData(form);
+                                const payload = {
+                                    projectId: project.id,
+                                    userId: localStorage.getItem('userId') || '1',
+                                    Date: formData.get('Date') || new Date().toISOString().split('T')[0],
+                                    Name: formData.get('Name') || '',
+                                    Module: formData.get('Module') || '',
+                                    Precondition: formData.get('Precondition') || '',
+                                    Steps: formData.get('Steps') || '',
+                                    ExpectationRes: formData.get('ExpectationRes') || '',
+                                    ActualRes: formData.get('ActualRes') || '',
+                                    Comment: formData.get('Comment') || '',
+                                    Status: formData.get('Status') || 'New'
+                                };
+
+                                try {
+                                    const res = await createTestKey(payload);
+                                    if (res) {
+                                        closeModal();
+                                        const updated = await getTestKey(project.id, null, subcategory.id, category.id);
+                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
+                                        if (listEl) {
+                                            listEl.innerHTML = Array.isArray(updated) && updated.length > 0 ? updated.map((item) => `
+                                                <div class="subcategory-item-entry tc-entry" data-test-case-id="${item.id}">${item.name || `Test case #${item.id}`}</div>
+                                            `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('Error creating test case', err);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
         }
 
         renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state, sidebar));
@@ -515,10 +942,14 @@ export const initDashboard = async () => {
         activeSection: null,
     };
 
+    dashboardContext.state = state;
+    dashboardContext.sidebar = sidebar;
+
     sidebar.innerHTML = '<div class="sidebar-loading">Loading projects...</div>';
 
     try {
         const projects = await getProjects();
+        dashboardContext.projects = projects;
 
         projects.forEach((project) => {
             state.expanded[project.id] = false;
