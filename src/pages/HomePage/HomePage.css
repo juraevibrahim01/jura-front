@@ -510,7 +510,7 @@
 
 .subcategory-folder {
     position: relative;
-    padding-left: 18px;
+    padding-left: 25px !important;
     border: 0;
     background: transparent;
     color: #475569;

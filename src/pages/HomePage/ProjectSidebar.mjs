@@ -32,6 +32,57 @@ const readProjectSubcategories = (projectId, categoryId) => {
     }
 };
 
+const ensureTreeState = (state, projectId) => {
+    state.expandedCategories = state.expandedCategories || {};
+    state.expandedSubcategories = state.expandedSubcategories || {};
+    state.expandedCategories[projectId] = state.expandedCategories[projectId] || {};
+    state.expandedSubcategories[projectId] = state.expandedSubcategories[projectId] || {};
+};
+
+const getActiveCategoryId = (projectId) => {
+    const storedCategoryId = Number(localStorage.getItem(getCategoryStorageKey(projectId)));
+    return Number.isFinite(storedCategoryId) && storedCategoryId > 0 ? storedCategoryId : 0;
+};
+
+const getActiveSubcategoryId = (projectId, categoryId) => {
+    const storedSubcategoryId = Number(localStorage.getItem(getSubcategoryStorageKey(projectId, categoryId)));
+    return Number.isFinite(storedSubcategoryId) && storedSubcategoryId > 0 ? storedSubcategoryId : 0;
+};
+
+const toggleCategoryBranch = (state, projectId, categoryId, shouldOpen) => {
+    ensureTreeState(state, projectId);
+
+    const nextCategoryMap = { ...state.expandedCategories[projectId] };
+    Object.keys(nextCategoryMap).forEach((id) => {
+        if (String(id) !== String(categoryId)) {
+            nextCategoryMap[id] = false;
+        }
+    });
+
+    nextCategoryMap[categoryId] = shouldOpen;
+    state.expandedCategories[projectId] = nextCategoryMap;
+
+    if (!shouldOpen) {
+        delete state.expandedSubcategories[projectId][categoryId];
+    } else {
+        state.expandedSubcategories[projectId][categoryId] = state.expandedSubcategories[projectId][categoryId] || {};
+    }
+};
+
+const toggleSubcategoryBranch = (state, projectId, categoryId, subcategoryId, shouldOpen) => {
+    ensureTreeState(state, projectId);
+
+    const nextSubcategoryMap = { ...state.expandedSubcategories[projectId][categoryId] };
+    Object.keys(nextSubcategoryMap).forEach((id) => {
+        if (String(id) !== String(subcategoryId)) {
+            nextSubcategoryMap[id] = false;
+        }
+    });
+
+    nextSubcategoryMap[subcategoryId] = shouldOpen;
+    state.expandedSubcategories[projectId][categoryId] = nextSubcategoryMap;
+};
+
 export const renderProjectsList = (container, projects, activeProjectId, state, actions = {}) => {
     container.innerHTML = '';
     state.expandedCategories = state.expandedCategories || {};
@@ -60,15 +111,12 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
         }
 
         const categories = readProjectCategories(project.id);
-        const storedCategoryId = Number(localStorage.getItem(getCategoryStorageKey(project.id)));
-        const activeCategoryId = Number.isFinite(storedCategoryId) && storedCategoryId > 0 ? storedCategoryId : 0;
-
-        const storedSubcategoryId = Number(localStorage.getItem(getSubcategoryStorageKey(project.id, activeCategoryId)));
-        const activeSubcategoryId = Number.isFinite(storedSubcategoryId) && storedSubcategoryId > 0 ? storedSubcategoryId : 0;
+        const activeCategoryId = getActiveCategoryId(project.id);
+        const activeSubcategoryId = activeCategoryId ? getActiveSubcategoryId(project.id, activeCategoryId) : 0;
 
         categories.forEach((category) => {
             const categoryGroup = createElement('div', 'submenu-category-group');
-            const isExpanded = !!(state.expandedCategories[project.id] && state.expandedCategories[project.id][category.id]);
+            const isExpanded = Boolean(state.expandedCategories[project.id]?.[category.id]) || Number(activeCategoryId) === Number(category.id);
 
             const categoryItem = createElement('div', 'submenu-item category-item');
             categoryItem.dataset.projectId = project.id;
@@ -91,8 +139,8 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
             }
 
             categoryItem.addEventListener('click', async () => {
-                state.expandedCategories[project.id] = state.expandedCategories[project.id] || {};
-                state.expandedCategories[project.id][category.id] = !state.expandedCategories[project.id][category.id];
+                const nextExpandedState = !Boolean(state.expandedCategories[project.id]?.[category.id]);
+                toggleCategoryBranch(state, project.id, category.id, nextExpandedState);
 
                 if (actions.onCategorySelect) {
                     await actions.onCategorySelect(project, category);
@@ -121,11 +169,9 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
                     subcategoryItem.appendChild(subcategoryText);
 
                     const isSelectedSubcategory = Number(activeCategoryId) === Number(category.id) && Number(activeSubcategoryId) === Number(subcategory.id);
-                    const isExpandedSubcategory = !!(
-                        state.expandedSubcategories[project.id] &&
-                        state.expandedSubcategories[project.id][category.id] &&
-                        state.expandedSubcategories[project.id][category.id][subcategory.id]
-                    );
+                    const isExpandedSubcategory = Boolean(
+                        state.expandedSubcategories[project.id]?.[category.id]?.[subcategory.id]
+                    ) || isSelectedSubcategory;
 
                     if (isSelectedSubcategory || isExpandedSubcategory) {
                         subcategoryItem.classList.add('active-subcategory');
@@ -157,30 +203,22 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
                     }
 
                     subcategoryItem.addEventListener('click', async () => {
-                        const currentExpanded = !!(
-                            state.expandedSubcategories[project.id] &&
-                            state.expandedSubcategories[project.id][category.id] &&
-                            state.expandedSubcategories[project.id][category.id][subcategory.id]
-                        );
+                        const currentExpanded = Boolean(state.expandedSubcategories[project.id]?.[category.id]?.[subcategory.id]);
+                        const nextExpandedState = !currentExpanded;
 
-                        state.expandedSubcategories[project.id] = state.expandedSubcategories[project.id] || {};
-                        state.expandedSubcategories[project.id][category.id] = state.expandedSubcategories[project.id][category.id] || {};
-                        state.expandedSubcategories[project.id][category.id][subcategory.id] = !currentExpanded;
+                        toggleSubcategoryBranch(state, project.id, category.id, subcategory.id, nextExpandedState);
 
-                        if (state.expandedSubcategories[project.id][category.id][subcategory.id]) {
+                        if (nextExpandedState) {
                             localStorage.setItem(getSubcategoryStorageKey(project.id, category.id), String(subcategory.id));
                         } else {
                             localStorage.removeItem(getSubcategoryStorageKey(project.id, category.id));
                         }
 
-                        if (!state.expandedSubcategories[project.id][category.id][subcategory.id]) {
-                            renderProjectsList(container, projects, state.activeProjectId, state, actions);
-                            return;
-                        }
-
                         if (actions.onSubcategorySelect) {
                             await actions.onSubcategorySelect(project, category, subcategory);
                         }
+
+                        renderProjectsList(container, projects, state.activeProjectId, state, actions);
                     });
 
                     subcategoryList.appendChild(subcategoryItem);

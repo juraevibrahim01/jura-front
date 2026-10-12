@@ -133,10 +133,12 @@ const addProjectSubcategory = (projectId, categoryId, subcategoryName) => {
 // ------------------------------------------------------------
 // Loaders for project hierarchy
 // ------------------------------------------------------------
-const loadProjectCategories = async (projectId) => {
+const loadProjectCategories = async (projectId, forceRefresh = false) => {
+    if (!projectId) return [];
+
     const cachedCategories = readProjectCategoriesFromStorage(projectId);
 
-    if (cachedCategories.length > 0) {
+    if (!forceRefresh && cachedCategories.length > 0) {
         return cachedCategories;
     }
 
@@ -274,6 +276,7 @@ const renderProjectCategories = async (projectId) => {
                                                 data-project-id="${projectId}"
                                                 data-category-id="${activeCategory.id}"
                                                 data-subcategory-id="${subcategory.id}"
+                                                onclick="window.openSubcategoryView && window.openSubcategoryView(this);"
                                             >
                                                 Bug Reports
                                             </button>
@@ -284,6 +287,7 @@ const renderProjectCategories = async (projectId) => {
                                                 data-project-id="${projectId}"
                                                 data-category-id="${activeCategory.id}"
                                                 data-subcategory-id="${subcategory.id}"
+                                                onclick="window.openSubcategoryView && window.openSubcategoryView(this);"
                                             >
                                                 Test Cases
                                             </button>
@@ -358,6 +362,46 @@ const renderEntityModal = ({ title, fieldLabel, submitLabel, onSubmit }) => {
     });
 };
 
+const handleSubcategoryFolderClick = async (folder) => {
+    const folderProjectId = folder.dataset.projectId;
+    const folderCategoryId = folder.dataset.categoryId;
+    const folderSubcategoryId = folder.dataset.subcategoryId;
+    const folderView = folder.dataset.subcategoryView;
+
+    if (!folderProjectId || !folderCategoryId || !folderSubcategoryId || !folderView) return;
+
+    const project = dashboardContext.projects.find((item) => Number(item.id) === Number(folderProjectId));
+    const category = { id: Number(folderCategoryId), name: 'Selected category' };
+    const subcategory = { id: Number(folderSubcategoryId), name: 'Selected subcategory' };
+
+    localStorage.setItem(
+        getSubcategoryViewStorageKey(folderProjectId, folderCategoryId, folderSubcategoryId),
+        folderView
+    );
+
+    if (project) {
+        await renderSubcategorySection(project, category, subcategory, folderView, dashboardContext.sidebar, dashboardContext.projects, dashboardContext.state);
+        return;
+    }
+
+    await showProjectMetrics(folderProjectId);
+};
+
+window.openSubcategoryView = async function openSubcategoryView(folder) {
+    if (!folder) return;
+    await handleSubcategoryFolderClick(folder);
+};
+
+const bindSubcategoryFolderActions = () => {
+    if (!mainContainer) return;
+
+    mainContainer.querySelectorAll('.subcategory-folder').forEach((folder) => {
+        folder.onclick = async () => {
+            await handleSubcategoryFolderClick(folder);
+        };
+    });
+};
+
 const showProjectMetrics = async (projectId) => {
     if (!mainContainer) return;
 
@@ -374,23 +418,7 @@ const showProjectMetrics = async (projectId) => {
             ${categoriesMarkup}
         `;
 
-        mainContainer.querySelectorAll('.subcategory-folder').forEach((folder) => {
-            folder.addEventListener('click', async () => {
-                const folderProjectId = folder.dataset.projectId;
-                const folderCategoryId = folder.dataset.categoryId;
-                const folderSubcategoryId = folder.dataset.subcategoryId;
-                const folderView = folder.dataset.subcategoryView;
-
-                if (!folderProjectId || !folderCategoryId || !folderSubcategoryId || !folderView) return;
-
-                localStorage.setItem(
-                    getSubcategoryViewStorageKey(folderProjectId, folderCategoryId, folderSubcategoryId),
-                    folderView
-                );
-
-                await showProjectMetrics(folderProjectId);
-            });
-        });
+        bindSubcategoryFolderActions();
 
         const createCategoryButton = mainContainer.querySelector('[data-action="create-category"]');
         if (createCategoryButton) {
@@ -493,7 +521,7 @@ const selectProject = async (projects, state, project) => {
     localStorage.setItem('activeProjectId', project.id);
     setBreadcrumb(['Jura', project.name, 'Categories']);
 
-    const categories = await loadProjectCategories(project.id);
+    const categories = await loadProjectCategories(project.id, true);
     if (categories.length > 0) {
         saveSelectedCategory(project.id, categories[0].id);
     }
@@ -518,6 +546,234 @@ const selectCategory = async (state, project, category) => {
                 saveSelectedSubcategory(project.id, category.id, firstSubcategoryId);
             }
         }
+    }
+};
+
+const renderSubcategorySection = async (project, category, subcategory, view, sidebar, projects, state) => {
+    if (!project?.id || !category?.id || !subcategory?.id || !view) return;
+
+    saveSelectedCategory(project.id, category.id);
+    saveSelectedSubcategory(project.id, category.id, subcategory.id);
+    localStorage.setItem(getSubcategoryViewStorageKey(project.id, category.id, subcategory.id), view);
+
+    const selectedSubcategory = {
+        id: Number(subcategory.id),
+        name: String(subcategory.name || 'Selected subcategory')
+    };
+
+    try {
+        const items = view === 'testcases'
+            ? await getTestKey(project.id, null, subcategory.id, category.id)
+            : await getBugReport(project.id, null, subcategory.id, category.id);
+
+        const listItems = Array.isArray(items) ? items : [];
+
+        mainContainer.innerHTML = `
+            <div class="metrics">
+                <h2 class="metrics-title">${selectedSubcategory.name}</h2>
+            </div>
+            <div class="subcategory-content">
+                <div class="subcategory-actions">
+                    ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
+                    ${view === 'testcases' ? `<button id="openCreateTestCase" class="btn-primary">Create Test Case</button>` : ''}
+                </div>
+                <div class="subcategory-section">
+                    <h5>${getSubcategorySectionTitle(view)}</h5>
+                    <div class="subcategory-items-list">
+                        ${listItems.length > 0 ? listItems.map((item) => `
+                            <div
+                                class="subcategory-item-entry ${view === 'testcases' ? 'tc-entry' : 'bug-entry'}"
+                                data-test-case-id="${item.id}"
+                                data-bugreport-id="${item.id}"
+                            >
+                                ${view === 'testcases'
+                                    ? (item.name || `Test case #${item.id}`)
+                                    : (item.title || item.name || `Ticket #${item.id}`)}
+                            </div>
+                        `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
+            entry.addEventListener('click', () => {
+                const bugreportId = entry.dataset.bugreportId;
+                const testCaseId = entry.dataset.testCaseId;
+
+                if (view === 'bugreports' && project.id && bugreportId) {
+                    const url = `/bugreport.html?projectId=${encodeURIComponent(project.id)}&tickets=${encodeURIComponent(bugreportId)}`;
+                    window.open(url, '_blank');
+                    return;
+                }
+
+                if (view === 'testcases' && project.id && testCaseId) {
+                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
+                    window.open(url, '_blank');
+                }
+            });
+        });
+
+        if (view === 'bugreports') {
+            const createBtn = mainContainer.querySelector('#openCreateBugReport');
+            if (createBtn) {
+                createBtn.addEventListener('click', () => {
+                    if (document.getElementById('bugReportModal')) return;
+                    document.body.insertAdjacentHTML('beforeend', createBugReportModal());
+
+                    const modal = document.getElementById('bugReportModal');
+                    const closeBtn = document.getElementById('closeBugReportModal');
+                    const cancelBtn = document.getElementById('cancelBugReportModal');
+                    const form = document.getElementById('bugReportForm');
+
+                    const closeModal = () => {
+                        if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                    };
+
+                    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+                    if (form) {
+                        form.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+
+                            const payload = {
+                                projectId: project.id,
+                                categoryId: category.id,
+                                subcategoryId: subcategory.id,
+                                userId: localStorage.getItem('userId') || '1',
+                                title: (document.getElementById('bugReportTitle') || {}).value || '',
+                                priority: (document.getElementById('bugReportPriority') || {}).value || 'Medium',
+                                severity: (document.getElementById('bugReportSeverity') || {}).value || 'Normal',
+                                environment: (document.getElementById('bugReportEnvironment') || {}).value || '',
+                                steps: (document.getElementById('bugReportSteps') || {}).value || '',
+                                expected_result: (document.getElementById('bugReportExpected') || {}).value || '',
+                                actual_result: (document.getElementById('bugReportActual') || {}).value || '',
+                                attachments: (document.getElementById('bugReportAttachments') || {}).value || ''
+                            };
+
+                            try {
+                                const res = await createBugreport(payload);
+                                if (res) {
+                                    closeModal();
+                                    const updated = await getBugReport(project.id, null, subcategory.id, category.id);
+                                    const listEl = mainContainer.querySelector('.subcategory-items-list');
+                                    if (listEl) {
+                                        listEl.innerHTML = Array.isArray(updated) && updated.length > 0 ? updated.map((item) => `
+                                            <div class="subcategory-item-entry bug-entry" data-bugreport-id="${item.id}">${item.title || item.name || `Ticket #${item.id}`}</div>
+                                        `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
+                                        mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
+                                            entry.addEventListener('click', () => {
+                                                const bugreportId = entry.dataset.bugreportId;
+                                                if (view === 'bugreports' && project.id && bugreportId) {
+                                                    const url = `/bugreport.html?projectId=${encodeURIComponent(project.id)}&tickets=${encodeURIComponent(bugreportId)}`;
+                                                    window.open(url, '_blank');
+                                                }
+                                            });
+                                        });
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Error creating bug report', err);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        if (view === 'testcases') {
+            const createBtn = mainContainer.querySelector('#openCreateTestCase');
+            if (createBtn) {
+                createBtn.addEventListener('click', () => {
+                    if (document.getElementById('testKeyModal')) return;
+                    document.body.insertAdjacentHTML('beforeend', createTestKeyModal());
+
+                    const modal = document.getElementById('testKeyModal');
+                    const closeBtn = document.getElementById('closeModal');
+                    const cancelBtn = document.getElementById('cancelModal');
+                    const form = document.getElementById('testKeyForm');
+
+                    const closeModal = () => {
+                        if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+                    };
+
+                    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+                    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+                    if (modal) {
+                        modal.addEventListener('click', (e) => {
+                            if (e.target === modal) closeModal();
+                        });
+                    }
+
+                    if (form) {
+                        form.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+
+                            const formData = new FormData(form);
+                            const payload = {
+                                projectId: project.id,
+                                userId: localStorage.getItem('userId') || '1',
+                                Date: formData.get('Date') || new Date().toISOString().split('T')[0],
+                                Name: formData.get('Name') || '',
+                                Module: formData.get('Module') || '',
+                                Precondition: formData.get('Precondition') || '',
+                                Steps: formData.get('Steps') || '',
+                                ExpectationRes: formData.get('ExpectationRes') || '',
+                                ActualRes: formData.get('ActualRes') || '',
+                                Comment: formData.get('Comment') || '',
+                                Status: formData.get('Status') || 'New'
+                            };
+
+                            try {
+                                const res = await createTestKey(payload);
+                                if (res) {
+                                    closeModal();
+                                    const updated = await getTestKey(project.id, null, subcategory.id, category.id);
+                                    const listEl = mainContainer.querySelector('.subcategory-items-list');
+                                    if (listEl) {
+                                        listEl.innerHTML = Array.isArray(updated) && updated.length > 0 ? updated.map((item) => `
+                                            <div class="subcategory-item-entry tc-entry" data-test-case-id="${item.id}">${item.name || `Test case #${item.id}`}</div>
+                                        `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
+                                        mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
+                                            entry.addEventListener('click', () => {
+                                                const testCaseId = entry.dataset.testCaseId;
+                                                if (view === 'testcases' && project.id && testCaseId) {
+                                                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
+                                                    window.open(url, '_blank');
+                                                }
+                                            });
+                                        });
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Error creating test case', err);
+                            }
+                        });
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        mainContainer.innerHTML = `
+            <div class="metrics">
+                <h2 class="metrics-title">${selectedSubcategory.name}</h2>
+            </div>
+            <div class="subcategory-content">
+                <div class="subcategory-actions">
+                    ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
+                    ${view === 'testcases' ? `<button id="openCreateTestCase" class="btn-primary">Create Test Case</button>` : ''}
+                </div>
+                <div class="subcategory-section">
+                    <h5>${getSubcategorySectionTitle(view)}</h5>
+                    <div class="main-error">Failed to load ${view === 'testcases' ? 'test cases' : 'bug reports'}.</div>
+                </div>
+            </div>
+        `;
+    }
+
+    if (sidebar && projects && state) {
+        renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state, sidebar));
     }
 };
 
@@ -549,377 +805,7 @@ const createProjectHandlers = (projects, state, sidebar) => ({
     },
     onSubcategorySectionSelect: async (project, category, subcategory, view) => {
         if (!project?.id || !category?.id || !subcategory?.id || !view) return;
-
-        saveSelectedCategory(project.id, category.id);
-        saveSelectedSubcategory(project.id, category.id, subcategory.id);
-        localStorage.setItem(getSubcategoryViewStorageKey(project.id, category.id, subcategory.id), view);
-
-        const selectedSubcategory = {
-            id: Number(subcategory.id),
-            name: String(subcategory.name || 'Selected subcategory')
-        };
-
-        try {
-            const items = view === 'testcases'
-                ? await getTestKey(project.id, null, subcategory.id, category.id)
-                : await getBugReport(project.id, null, subcategory.id, category.id);
-
-            const listItems = Array.isArray(items) ? items : [];
-
-            mainContainer.innerHTML = `
-                <div class="metrics">
-                    <h2 class="metrics-title">${selectedSubcategory.name}</h2>
-                </div>
-                <div class="subcategory-content">
-                    <div class="subcategory-actions">
-                        ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
-                        ${view === 'testcases' ? `<button id="openCreateTestCase" class="btn-primary">Create Test Case</button>` : ''}
-                    </div>
-                    <div class="subcategory-section">
-                        <h5>${getSubcategorySectionTitle(view)}</h5>
-                        <div class="subcategory-items-list">
-                            ${listItems.length > 0 ? listItems.map((item) => `
-                                <div
-                                    class="subcategory-item-entry ${view === 'testcases' ? 'tc-entry' : 'bug-entry'}"
-                                    data-test-case-id="${item.id}"
-                                    data-bugreport-id="${item.id}"
-                                >
-                                    ${view === 'testcases'
-                                        ? (item.name || `Test case #${item.id}`)
-                                        : (item.title || item.name || `Ticket #${item.id}`)}
-                                </div>
-                            `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`}
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
-                entry.addEventListener('click', () => {
-                    const bugreportId = entry.dataset.bugreportId;
-                    const testCaseId = entry.dataset.testCaseId;
-
-                    if (view === 'bugreports' && project.id && bugreportId) {
-                        const url = `/bugreport.html?projectId=${encodeURIComponent(project.id)}&tickets=${encodeURIComponent(bugreportId)}`;
-                        window.open(url, '_blank');
-                        return;
-                    }
-
-                    if (view === 'testcases' && project.id && testCaseId) {
-                        const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
-                        window.open(url, '_blank');
-                    }
-                });
-            });
-            // Attach create modal handlers for subcategory view
-            if (view === 'bugreports') {
-                const createBtn = mainContainer.querySelector('#openCreateBugReport');
-                if (createBtn) {
-                    createBtn.addEventListener('click', () => {
-                        if (document.getElementById('bugReportModal')) return;
-                        document.body.insertAdjacentHTML('beforeend', createBugReportModal());
-
-                        const modal = document.getElementById('bugReportModal');
-                        const closeBtn = document.getElementById('closeBugReportModal');
-                        const cancelBtn = document.getElementById('cancelBugReportModal');
-                        const form = document.getElementById('bugReportForm');
-
-                        const closeModal = () => {
-                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
-                        };
-
-                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
-                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-
-                        if (form) {
-                            form.addEventListener('submit', async (e) => {
-                                e.preventDefault();
-
-                                const payload = {
-                                    projectId: project.id,
-                                    userId: localStorage.getItem('userId') || '1',
-                                    Date: new Date().toISOString(),
-                                    Name: (document.getElementById('bugReportName') || {}).value || '',
-                                    Module: (document.getElementById('bugReportModule') || {}).value || '',
-                                    Precondition: (document.getElementById('bugReportPrecondition') || {}).value || '',
-                                    Steps: (document.getElementById('bugReportSteps') || {}).value || '',
-                                    ExpectationRes: (document.getElementById('bugReportExpectation') || {}).value || '',
-                                    ActualRes: (document.getElementById('bugReportActual') || {}).value || '',
-                                    Comment: (document.getElementById('bugReportComment') || {}).value || ''
-                                };
-
-                                try {
-                                    const req = {
-                                        projectId: project.id,
-                                        categoryId: category.id,
-                                        subcategoryId: subcategory.id,
-                                        userId: payload.userId,
-                                        title: (document.getElementById('bugReportTitle') || {}).value || payload.Name || '',
-                                        priority: (document.getElementById('bugReportPriority') || {}).value || 'Medium',
-                                        severity: (document.getElementById('bugReportSeverity') || {}).value || 'Normal',
-                                        environment: (document.getElementById('bugReportEnvironment') || {}).value || payload.Precondition || '',
-                                        steps: (document.getElementById('bugReportSteps') || {}).value || payload.Steps || '',
-                                        expected_result: (document.getElementById('bugReportExpected') || {}).value || payload.ExpectationRes || '',
-                                        actual_result: (document.getElementById('bugReportActual') || {}).value || payload.ActualRes || '',
-                                        attachments: (document.getElementById('bugReportAttachments') || {}).value || ''
-                                    };
-
-                                    const res = await createBugreport(req);
-                                    if (res) {
-                                        closeModal();
-                                        // refresh the list
-                                        const updated = await getBugReport(project.id, null, subcategory.id, category.id);
-                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
-                                        if (listEl) {
-                                            const itemsMarkup = Array.isArray(updated) && updated.length > 0
-                                                ? updated.map((item) => `
-                                                    <div class="subcategory-item-entry bug-entry" data-bugreport-id="${item.id}">${item.title || item.name || `Ticket #${item.id}`}</div>
-                                                `).join('')
-                                                : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
-                                            listEl.innerHTML = itemsMarkup;
-                                            // reattach click handlers for new items
-                                            mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
-                                                entry.addEventListener('click', () => {
-                                                    const bugreportId = entry.dataset.bugreportId;
-                                                    if (view === 'bugreports' && project.id && bugreportId) {
-                                                        const url = `/bugreport.html?projectId=${encodeURIComponent(project.id)}&tickets=${encodeURIComponent(bugreportId)}`;
-                                                        window.open(url, '_blank');
-                                                    }
-                                                });
-                                            });
-                                        }
-                                    } else {
-                                        console.error('Failed to create bug report');
-                                    }
-                                } catch (err) {
-                                    console.error('Error creating bug report', err);
-                                }
-                            });
-                        }
-                    });
-                }
-            }
-
-            if (view === 'testcases') {
-                const createBtn = mainContainer.querySelector('#openCreateTestCase');
-                if (createBtn) {
-                    createBtn.addEventListener('click', () => {
-                        if (document.getElementById('testKeyModal')) return;
-                        document.body.insertAdjacentHTML('beforeend', createTestKeyModal());
-
-                        const modal = document.getElementById('testKeyModal');
-                        const closeBtn = document.getElementById('closeModal');
-                        const cancelBtn = document.getElementById('cancelModal');
-                        const form = document.getElementById('testKeyForm');
-
-                        const closeModal = () => {
-                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
-                        };
-
-                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
-                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-
-                        modal.addEventListener('click', (e) => {
-                            if (e.target === modal) {
-                                closeModal();
-                            }
-                        });
-
-                        if (form) {
-                            form.addEventListener('submit', async (e) => {
-                                e.preventDefault();
-
-                                const formData = new FormData(form);
-                                const payload = {
-                                    projectId: project.id,
-                                    userId: localStorage.getItem('userId') || '1',
-                                    Date: formData.get('Date') || new Date().toISOString().split('T')[0],
-                                    Name: formData.get('Name') || '',
-                                    Module: formData.get('Module') || '',
-                                    Precondition: formData.get('Precondition') || '',
-                                    Steps: formData.get('Steps') || '',
-                                    ExpectationRes: formData.get('ExpectationRes') || '',
-                                    ActualRes: formData.get('ActualRes') || '',
-                                    Comment: formData.get('Comment') || '',
-                                    Status: formData.get('Status') || 'New'
-                                };
-
-                                try {
-                                    const res = await createTestKey(payload);
-                                    if (res) {
-                                        closeModal();
-                                        const updated = await getTestKey(project.id, null, subcategory.id, category.id);
-                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
-                                        if (listEl) {
-                                            const itemsMarkup = Array.isArray(updated) && updated.length > 0
-                                                ? updated.map((item) => `
-                                                    <div class="subcategory-item-entry tc-entry" data-test-case-id="${item.id}">${item.name || `Test case #${item.id}`}</div>
-                                                `).join('')
-                                                : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
-                                            listEl.innerHTML = itemsMarkup;
-                                            mainContainer.querySelectorAll('.subcategory-item-entry').forEach((entry) => {
-                                                entry.addEventListener('click', () => {
-                                                    const testCaseId = entry.dataset.testCaseId;
-                                                    if (view === 'testcases' && project.id && testCaseId) {
-                                                        const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
-                                                        window.open(url, '_blank');
-                                                    }
-                                                });
-                                            });
-                                        }
-                                    } else {
-                                        console.error('Failed to create test case');
-                                    }
-                                } catch (err) {
-                                    console.error('Error creating test case', err);
-                                }
-                            });
-                        }
-                    });
-                }
-            }
-        } catch (error) {
-            mainContainer.innerHTML = `
-                <div class="metrics">
-                    <h2 class="metrics-title">${selectedSubcategory.name}</h2>
-                </div>
-                <div class="subcategory-content">
-                    <div class="subcategory-actions">
-                        ${view === 'bugreports' ? `<button id="openCreateBugReport" class="btn-primary">Create Bug Report</button>` : ''}
-                        ${view === 'testcases' ? `<button id="openCreateTestCase" class="btn-primary">Create Test Case</button>` : ''}
-                    </div>
-                    <div class="subcategory-section">
-                        <h5>${getSubcategorySectionTitle(view)}</h5>
-                        <div class="main-error">Failed to load ${view === 'testcases' ? 'test cases' : 'bug reports'}.</div>
-                    </div>
-                </div>
-            `;
-
-            if (view === 'bugreports') {
-                const createBtn = mainContainer.querySelector('#openCreateBugReport');
-                if (createBtn) {
-                    createBtn.addEventListener('click', () => {
-                        if (document.getElementById('bugReportModal')) return;
-                        document.body.insertAdjacentHTML('beforeend', createBugReportModal());
-
-                        const modal = document.getElementById('bugReportModal');
-                        const closeBtn = document.getElementById('closeBugReportModal');
-                        const cancelBtn = document.getElementById('cancelBugReportModal');
-                        const form = document.getElementById('bugReportForm');
-
-                        const closeModal = () => {
-                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
-                        };
-
-                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
-                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-
-                        if (form) {
-                            form.addEventListener('submit', async (e) => {
-                                e.preventDefault();
-
-                                const payload = {
-                                    projectId: project.id,
-                                    categoryId: category.id,
-                                    subcategoryId: subcategory.id,
-                                    userId: localStorage.getItem('userId') || '1',
-                                    title: (document.getElementById('bugReportTitle') || {}).value || '',
-                                    priority: (document.getElementById('bugReportPriority') || {}).value || 'Medium',
-                                    severity: (document.getElementById('bugReportSeverity') || {}).value || 'Normal',
-                                    environment: (document.getElementById('bugReportEnvironment') || {}).value || '',
-                                    steps: (document.getElementById('bugReportSteps') || {}).value || '',
-                                    expected_result: (document.getElementById('bugReportExpected') || {}).value || '',
-                                    actual_result: (document.getElementById('bugReportActual') || {}).value || '',
-                                    attachments: (document.getElementById('bugReportAttachments') || {}).value || ''
-                                };
-
-                                try {
-                                    const res = await createBugreport(payload);
-                                    if (res) {
-                                        closeModal();
-                                        const updated = await getBugReport(project.id, null, subcategory.id, category.id);
-                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
-                                        if (listEl) {
-                                            listEl.innerHTML = Array.isArray(updated) && updated.length > 0 ? updated.map((item) => `
-                                                <div class="subcategory-item-entry bug-entry" data-bugreport-id="${item.id}">${item.title || item.name || `Ticket #${item.id}`}</div>
-                                            `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
-                                        }
-                                    }
-                                } catch (err) {
-                                    console.error('Error creating bug report', err);
-                                }
-                            });
-                        }
-                    });
-                }
-            }
-
-            if (view === 'testcases') {
-                const createBtn = mainContainer.querySelector('#openCreateTestCase');
-                if (createBtn) {
-                    createBtn.addEventListener('click', () => {
-                        if (document.getElementById('testKeyModal')) return;
-                        document.body.insertAdjacentHTML('beforeend', createTestKeyModal());
-
-                        const modal = document.getElementById('testKeyModal');
-                        const closeBtn = document.getElementById('closeModal');
-                        const cancelBtn = document.getElementById('cancelModal');
-                        const form = document.getElementById('testKeyForm');
-
-                        const closeModal = () => {
-                            if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
-                        };
-
-                        if (closeBtn) closeBtn.addEventListener('click', closeModal);
-                        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-                        if (modal) {
-                            modal.addEventListener('click', (e) => {
-                                if (e.target === modal) closeModal();
-                            });
-                        }
-
-                        if (form) {
-                            form.addEventListener('submit', async (e) => {
-                                e.preventDefault();
-
-                                const formData = new FormData(form);
-                                const payload = {
-                                    projectId: project.id,
-                                    userId: localStorage.getItem('userId') || '1',
-                                    Date: formData.get('Date') || new Date().toISOString().split('T')[0],
-                                    Name: formData.get('Name') || '',
-                                    Module: formData.get('Module') || '',
-                                    Precondition: formData.get('Precondition') || '',
-                                    Steps: formData.get('Steps') || '',
-                                    ExpectationRes: formData.get('ExpectationRes') || '',
-                                    ActualRes: formData.get('ActualRes') || '',
-                                    Comment: formData.get('Comment') || '',
-                                    Status: formData.get('Status') || 'New'
-                                };
-
-                                try {
-                                    const res = await createTestKey(payload);
-                                    if (res) {
-                                        closeModal();
-                                        const updated = await getTestKey(project.id, null, subcategory.id, category.id);
-                                        const listEl = mainContainer.querySelector('.subcategory-items-list');
-                                        if (listEl) {
-                                            listEl.innerHTML = Array.isArray(updated) && updated.length > 0 ? updated.map((item) => `
-                                                <div class="subcategory-item-entry tc-entry" data-test-case-id="${item.id}">${item.name || `Test case #${item.id}`}</div>
-                                            `).join('') : `<div class="main-empty">${getSubcategoryEmptyMessage(view)}</div>`;
-                                        }
-                                    }
-                                } catch (err) {
-                                    console.error('Error creating test case', err);
-                                }
-                            });
-                        }
-                    });
-                }
-            }
-        }
-
-        renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state, sidebar));
+        await renderSubcategorySection(project, category, subcategory, view, sidebar, projects, state);
     }
 });
 
