@@ -1,3 +1,5 @@
+import { deleteProjectCategory } from '../../api/categoryapi.mjs';
+
 const createElement = (tag, className = '', text = '') => {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -38,6 +40,65 @@ const ensureTreeState = (state, projectId) => {
     state.expandedCategories[projectId] = state.expandedCategories[projectId] || {};
     state.expandedSubcategories[projectId] = state.expandedSubcategories[projectId] || {};
 };
+
+const showConfirmModal = (title, message) => new Promise((resolve) => {
+    const modalId = 'ps-delete-confirm-modal';
+    if (document.getElementById(modalId)) return resolve(false);
+
+    const overlay = document.createElement('div');
+    overlay.id = modalId;
+    overlay.className = 'modal-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(0,0,0,0.4)';
+    overlay.style.zIndex = '9999';
+
+    const box = document.createElement('div');
+    box.className = 'modal-content';
+    box.style.background = '#fff';
+    box.style.padding = '16px';
+    box.style.borderRadius = '6px';
+    box.style.maxWidth = '420px';
+    box.style.width = '90%';
+    box.innerHTML = `
+        <div style="margin-bottom:12px;font-weight:600">${String(title)}</div>
+        <div style="margin-bottom:16px">${String(message)}</div>
+    `;
+
+    const actions = document.createElement('div');
+    actions.style.display = 'flex';
+    actions.style.justifyContent = 'flex-end';
+    actions.style.gap = '8px';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn-primary';
+    okBtn.textContent = 'Delete';
+
+    cancelBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        resolve(false);
+    });
+
+    okBtn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        resolve(true);
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    box.appendChild(actions);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+});
 
 const getActiveCategoryId = (projectId) => {
     const storedCategoryId = Number(localStorage.getItem(getCategoryStorageKey(projectId)));
@@ -123,12 +184,61 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
             categoryItem.dataset.categoryId = category.id;
             categoryItem.dataset.categoryName = category.name;
 
+            const categoryContent = createElement('div', 'category-content');
+
             const categoryChevron = createElement('span', 'category-chevron');
             categoryChevron.textContent = isExpanded ? '▼' : '▶';
-            categoryItem.appendChild(categoryChevron);
+            categoryContent.appendChild(categoryChevron);
 
             const categoryText = createElement('span', 'category-text', category.name);
-            categoryItem.appendChild(categoryText);
+            categoryContent.appendChild(categoryText);
+
+            categoryItem.appendChild(categoryContent);
+
+            const deleteBtn = createElement('button', 'category-delete', '✖');
+            deleteBtn.title = 'Delete category';
+            deleteBtn.style.marginLeft = '8px';
+            deleteBtn.style.background = 'transparent';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.style.color = '#c0392b';
+            deleteBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const confirmed = await showConfirmModal('Delete category', `Вы точно хотите удалить категорию "${category.name}"?`);
+                if (!confirmed) return;
+
+                const result = await deleteProjectCategory(project.id, category.id);
+                if (!result) {
+                    alert('Failed to delete category');
+                    return;
+                }
+
+                // remove from cached categories
+                try {
+                    const cached = readProjectCategories(project.id).filter((c) => Number(c.id) !== Number(category.id));
+                    localStorage.setItem(getProjectCategoriesKey(project.id), JSON.stringify(cached));
+                } catch (e) {
+                    // ignore
+                }
+
+                // clear stored subcategories and active pointers
+                try {
+                    localStorage.removeItem(getProjectSubcategoriesStorageKey(project.id, category.id));
+                    localStorage.removeItem(getCategoryStorageKey(project.id));
+                    localStorage.removeItem(getSubcategoryStorageKey(project.id, category.id));
+                } catch (e) {}
+
+                // cleanup state
+                if (state.expandedCategories && state.expandedCategories[project.id]) {
+                    delete state.expandedCategories[project.id][category.id];
+                }
+                if (state.expandedSubcategories && state.expandedSubcategories[project.id]) {
+                    delete state.expandedSubcategories[project.id][category.id];
+                }
+
+                renderProjectsList(container, projects, state.activeProjectId, state, actions);
+            });
+            categoryItem.appendChild(deleteBtn);
 
             if (
                 state.activeSection === 'categories' &&
@@ -139,11 +249,23 @@ export const renderProjectsList = (container, projects, activeProjectId, state, 
             }
 
             categoryItem.addEventListener('click', async () => {
-                const nextExpandedState = !Boolean(state.expandedCategories[project.id]?.[category.id]);
+                const currentExpanded = Boolean(state.expandedCategories[project.id]?.[category.id]);
+                const nextExpandedState = !currentExpanded;
                 toggleCategoryBranch(state, project.id, category.id, nextExpandedState);
 
-                if (actions.onCategorySelect) {
-                    await actions.onCategorySelect(project, category);
+                if (nextExpandedState) {
+                    // Opening: select the category (load its data)
+                    if (actions.onCategorySelect) {
+                        await actions.onCategorySelect(project, category);
+                    }
+                } else {
+                    // Closing: clear persisted active category/subcategory so UI doesn't force it open
+                    try {
+                        localStorage.removeItem(getCategoryStorageKey(project.id));
+                        localStorage.removeItem(getSubcategoryStorageKey(project.id, category.id));
+                    } catch (e) {
+                        // ignore
+                    }
                 }
 
                 renderProjectsList(container, projects, state.activeProjectId, state, actions);

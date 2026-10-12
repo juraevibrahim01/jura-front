@@ -82,3 +82,23 @@ export const createCategorySubcategory = async (categoryId, name) => {
         return null;
     }
 };
+
+export const deleteProjectCategory = async (projectId, categoryId) => {
+    if (!projectId || !categoryId) return null;
+
+    try {
+        const response = await fetchJson(`/project/${projectId}/categories`, {
+            method: 'DELETE',
+            headers: {
+                ...getHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id: categoryId })
+        });
+
+        return response || null;
+    } catch (error) {
+        console.error('Error deleting category:', error);
+        return null;
+    }
+};

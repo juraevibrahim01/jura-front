@@ -365,6 +365,7 @@
 .submenu-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
     padding: 8px 10px;
     border-radius: 6px;
@@ -382,6 +383,7 @@
 
 .category-chevron {
     display: inline-flex;
+    margin-right: 6px;
     width: 12px;
     justify-content: center;
     color: #64748b;
