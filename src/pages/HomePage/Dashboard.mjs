@@ -621,7 +621,7 @@ const renderSubcategorySection = async (project, category, subcategory, view, si
                 }
 
                 if (view === 'testcases' && project.id && testCaseId) {
-                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
+                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&categoryId=${encodeURIComponent(category.id)}&subcategoryId=${encodeURIComponent(subcategory.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
                     window.open(url, '_blank');
                 }
             });
@@ -726,6 +726,8 @@ const renderSubcategorySection = async (project, category, subcategory, view, si
                             const formData = new FormData(form);
                             const payload = {
                                 projectId: project.id,
+                                categoryId: category.id,
+                                subcategoryId: subcategory.id,
                                 userId: localStorage.getItem('userId') || '1',
                                 Date: formData.get('Date') || new Date().toISOString().split('T')[0],
                                 Name: formData.get('Name') || '',
@@ -752,7 +754,7 @@ const renderSubcategorySection = async (project, category, subcategory, view, si
                                             entry.addEventListener('click', () => {
                                                 const testCaseId = entry.dataset.testCaseId;
                                                 if (view === 'testcases' && project.id && testCaseId) {
-                                                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
+                                                    const url = `/test-case.html?projectId=${encodeURIComponent(project.id)}&categoryId=${encodeURIComponent(category.id)}&subcategoryId=${encodeURIComponent(subcategory.id)}&testCaseId=${encodeURIComponent(testCaseId)}`;
                                                     window.open(url, '_blank');
                                                 }
                                             });

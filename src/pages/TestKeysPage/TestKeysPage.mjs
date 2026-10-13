@@ -28,6 +28,13 @@ const projectId =
 const testCaseId =
     params.get('testCaseId');
 
+const categoryId =
+    params.get('categoryId')
+        || (projectId ? localStorage.getItem(`activeCategoryId_${projectId}`) : null);
+
+const subcategoryId =
+    params.get('subcategoryId')
+        || (projectId && categoryId ? localStorage.getItem(`activeSubcategoryId_${projectId}_${categoryId}`) : null);
 
 // ======================================================
 // Проверяем параметры
@@ -67,7 +74,9 @@ async function loadTestCase() {
         const response =
             await getTestKey(
                 projectId,
-                Number(testCaseId)
+                Number(testCaseId),
+                subcategoryId,
+                categoryId
             );
 
 
@@ -76,10 +85,15 @@ async function loadTestCase() {
             response
         );
 
+        const testCase =
+            response?.test_key
+                ?? response?.data?.test_key
+                ?? response?.data
+                ?? response;
+
 
         if (
-            !response ||
-            !response.test_key
+            !testCase
         ) {
 
             throw new Error(
@@ -90,7 +104,7 @@ async function loadTestCase() {
 
 
         renderTestCase(
-            response.test_key
+            testCase
         );
 
 
@@ -122,10 +136,38 @@ async function loadTestCase() {
 
 
 // ======================================================
+// Нормализация ответа API
+// ======================================================
+
+function normalizeTestCase(testCase) {
+
+    if (!testCase || typeof testCase !== 'object') {
+        return {};
+    }
+
+    return {
+        id: testCase.id ?? testCase.ID ?? testCase.test_case_id ?? testCase.testCaseId ?? '',
+        name: testCase.name ?? testCase.Name ?? testCase.title ?? '',
+        date: testCase.date ?? testCase.Date ?? testCase.created_at ?? testCase.createdAt ?? '',
+        module: testCase.module ?? testCase.Module ?? '',
+        precondition: testCase.precondition ?? testCase.Precondition ?? '',
+        steps: testCase.steps ?? testCase.Steps ?? '',
+        expectation_res: testCase.expectation_res ?? testCase.ExpectationRes ?? testCase.expected_result ?? testCase.ExpectedResult ?? '',
+        actual_res: testCase.actual_res ?? testCase.ActualRes ?? testCase.actual_result ?? testCase.ActualResult ?? '',
+        comment: testCase.comment ?? testCase.Comment ?? '',
+        status: testCase.status ?? testCase.Status ?? ''
+    };
+
+}
+
+
+// ======================================================
 // Рендер Test Case
 // ======================================================
 
 function renderTestCase(testCase) {
+
+    const normalizedTestCase = normalizeTestCase(testCase);
 
     main.innerHTML = `
 
@@ -136,11 +178,11 @@ function renderTestCase(testCase) {
                 <div>
 
                     <span class="test-case-id">
-                        #${testCase.id ?? ''}
+                        #${normalizedTestCase.id ?? ''}
                     </span>
 
                     <h2>
-                        ${testCase.name ?? ''}
+                        ${normalizedTestCase.name ?? ''}
                     </h2>
 
                 </div>
@@ -159,9 +201,9 @@ function renderTestCase(testCase) {
 
                     <div class="test-case-value">
                         ${
-                            testCase.date
+                            normalizedTestCase.date
                                 ? new Date(
-                                    testCase.date
+                                    normalizedTestCase.date
                                 ).toLocaleDateString()
                                 : ''
                         }
@@ -177,7 +219,7 @@ function renderTestCase(testCase) {
                     </div>
 
                     <div class="test-case-value">
-                        ${testCase.module ?? ''}
+                        ${normalizedTestCase.module ?? ''}
                     </div>
 
                 </div>
@@ -190,7 +232,7 @@ function renderTestCase(testCase) {
                     </div>
 
                     <div class="test-case-value">
-                        ${testCase.precondition ?? ''}
+                        ${normalizedTestCase.precondition ?? ''}
                     </div>
 
                 </div>
@@ -203,7 +245,7 @@ function renderTestCase(testCase) {
                     </div>
 
                     <div class="test-case-value">
-                        ${testCase.steps ?? ''}
+                        ${normalizedTestCase.steps ?? ''}
                     </div>
 
                 </div>
@@ -216,7 +258,7 @@ function renderTestCase(testCase) {
                     </div>
 
                     <div class="test-case-value">
-                        ${testCase.expectation_res ?? ''}
+                        ${normalizedTestCase.expectation_res ?? ''}
                     </div>
 
                 </div>
@@ -229,7 +271,7 @@ function renderTestCase(testCase) {
                     </div>
 
                     <div class="test-case-value">
-                        ${testCase.actual_res ?? ''}
+                        ${normalizedTestCase.actual_res ?? ''}
                     </div>
 
                 </div>
@@ -242,7 +284,7 @@ function renderTestCase(testCase) {
                     </div>
 
                     <div class="test-case-value">
-                        ${testCase.comment ?? ''}
+                        ${normalizedTestCase.comment ?? ''}
                     </div>
 
                 </div>

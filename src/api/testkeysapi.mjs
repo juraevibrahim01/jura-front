@@ -4,13 +4,18 @@ const PROJECTS_STORAGE_KEY = 'projects';
 
 const hasRealNumericId = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
-const buildTestCaseEndpoint = (projectId, categoryId = null, subcategoryId = null, forCreate = false) => {
+const buildTestCaseEndpoint = (projectId, categoryId = null, subcategoryId = null, testCaseId = null) => {
     const safeProjectId = projectId ?? '';
     const safeCategoryId = hasRealNumericId(categoryId) ? Number(categoryId) : null;
     const safeSubcategoryId = hasRealNumericId(subcategoryId) ? Number(subcategoryId) : null;
+    const safeTestCaseId = hasRealNumericId(testCaseId) ? Number(testCaseId) : null;
 
     if (!safeProjectId) {
         return null;
+    }
+
+    if (safeTestCaseId !== null) {
+        return `/projects/${safeProjectId}/test-cases/${safeTestCaseId}`;
     }
 
     if (safeCategoryId !== null && safeSubcategoryId !== null) {
@@ -27,6 +32,15 @@ export const getTestKey = async (project_id, id = null, subcategoryId = null, ca
             'X-User-UserID': '1',
             'X-User-Email': 'juraevibrahim01@gmail.com'
         };
+
+        if (id) {
+            const endpoint = buildTestCaseEndpoint(project_id, categoryId, subcategoryId, id);
+            const response = await fetchJson(endpoint, {
+                method: 'GET',
+                headers
+            });
+            return response?.test_key || response?.data || response || null;
+        }
 
         const subcategoryPathIsValid = hasRealNumericId(categoryId) && hasRealNumericId(subcategoryId);
 
@@ -55,22 +69,12 @@ export const getTestKey = async (project_id, id = null, subcategoryId = null, ca
             return [];
         }
 
-        if (!id) {
-            const endpoint = buildTestCaseEndpoint(project_id);
-            const response = await fetchJson(endpoint, {
-                method: 'GET',
-                headers
-            });
-            return response?.test_keys || [];
-        }
-
-        const response = await fetchJson(buildTestCaseEndpoint(project_id), {
+        const endpoint = buildTestCaseEndpoint(project_id);
+        const response = await fetchJson(endpoint, {
             method: 'GET',
             headers
         });
-
-        console.log(response);
-        return response;
+        return response?.test_keys || [];
     } catch (error) {
         console.error(`Error fetching test key ${id}:`, error);
         return id ? null : [];
