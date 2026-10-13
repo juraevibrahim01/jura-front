@@ -467,8 +467,13 @@ const showProjectMetrics = async (projectId) => {
         if (createSubcategoryButton) {
             createSubcategoryButton.addEventListener('click', async () => {
                 const projectId = createSubcategoryButton.dataset.projectId;
-                const categoryId = createSubcategoryButton.dataset.categoryId;
+                const stateCategoryId = dashboardContext.state?.activeCategoryId ?? Number(localStorage.getItem(getCategoryStorageKey(projectId)) || 0);
+                const categoryId = stateCategoryId > 0 ? String(stateCategoryId) : createSubcategoryButton.dataset.categoryId;
+
                 if (!projectId || !categoryId) return;
+
+                saveSelectedCategory(projectId, Number(categoryId));
+                if (dashboardContext.state) dashboardContext.state.activeCategoryId = Number(categoryId);
 
                 renderEntityModal({
                     title: 'Add subcategory',
@@ -492,6 +497,7 @@ const showProjectMetrics = async (projectId) => {
                         }];
                         saveProjectSubcategories(projectId, categoryId, nextSubcategories);
                         saveSelectedSubcategory(projectId, categoryId, subcategoryId);
+                        if (dashboardContext.state) dashboardContext.state.activeSubcategoryId = Number(subcategoryId);
 
                         closeModal();
                         renderProjectsList(
@@ -518,12 +524,16 @@ const selectProject = async (projects, state, project) => {
     state.activeProjectId = project.id;
     state.activeProjectName = project.name;
     state.activeSection = 'categories';
+    state.activeCategoryId = null;
+    state.activeSubcategoryId = null;
     localStorage.setItem('activeProjectId', project.id);
     setBreadcrumb(['Jura', project.name, 'Categories']);
 
     const categories = await loadProjectCategories(project.id, true);
     if (categories.length > 0) {
-        saveSelectedCategory(project.id, categories[0].id);
+        const firstCategoryId = Number(categories[0].id);
+        saveSelectedCategory(project.id, firstCategoryId);
+        state.activeCategoryId = firstCategoryId;
     }
 
     await showProjectMetrics(project.id);
@@ -533,6 +543,8 @@ const selectCategory = async (state, project, category) => {
     state.activeProjectId = project.id;
     state.activeProjectName = project.name;
     state.activeSection = 'categories';
+    state.activeCategoryId = Number(category?.id) || null;
+    state.activeSubcategoryId = null;
     localStorage.setItem('activeProjectId', project.id);
     setBreadcrumb(['Jura', project.name, category?.name || 'Categories']);
 
@@ -544,6 +556,7 @@ const selectCategory = async (state, project, category) => {
             const firstSubcategoryId = subcategories[0]?.id;
             if (firstSubcategoryId) {
                 saveSelectedSubcategory(project.id, category.id, firstSubcategoryId);
+                state.activeSubcategoryId = Number(firstSubcategoryId);
             }
         }
     }
@@ -792,6 +805,7 @@ const createProjectHandlers = (projects, state, sidebar) => ({
     },
     onCategorySelect: async (project, category) => {
         await selectCategory(state, project, category);
+        await showProjectMetrics(project.id);
         renderProjectsList(sidebar, projects, state.activeProjectId, state, createProjectHandlers(projects, state, sidebar));
     },
     onSubcategorySelect: async (project, category, subcategory) => {
@@ -826,6 +840,8 @@ export const initDashboard = async () => {
         activeProjectId: null,
         activeProjectName: null,
         activeSection: null,
+        activeCategoryId: null,
+        activeSubcategoryId: null,
     };
 
     dashboardContext.state = state;
