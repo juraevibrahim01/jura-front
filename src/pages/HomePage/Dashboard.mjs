@@ -539,7 +539,7 @@ const selectCategory = async (state, project, category) => {
     if (project?.id && category?.id) {
         saveSelectedCategory(project.id, category.id);
 
-        const subcategories = await loadSubcategoriesForCategory(project.id, category.id, false);
+        const subcategories = await loadSubcategoriesForCategory(project.id, category.id, true);
         if (Array.isArray(subcategories) && subcategories.length > 0) {
             const firstSubcategoryId = subcategories[0]?.id;
             if (firstSubcategoryId) {
